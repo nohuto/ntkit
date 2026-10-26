@@ -1,0 +1,60 @@
+// two 'Maximum' threads share logical CPU 1 for 30s
+// 
+// 'Normal' runs whenever it wants to, 'Lowest' is ready all the time and gets almost no CPU time
+// about every 4s Windows raises a thread that waited that long in the ready state to priority 15 for a moment
+
+{
+  "format": "thread-sim.run-config",
+  "version": 4,
+  "name": "CPU starvation",
+  "duration_s": 30,
+  "sample_interval_ms": 500,
+  "threads": [
+    {
+      "name": "Normal",
+      "active": true,
+      "shared_mutex": false,
+      "scheduling": {
+        "relative_priority": "normal",
+        "priority_boost_enabled": true
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 100,
+        "period_ms": 100,
+        "waitable_timer_kind": "default"
+      }
+    },
+    {
+      "name": "Lowest",
+      "active": true,
+      "shared_mutex": false,
+      "scheduling": {
+        "relative_priority": "lowest",
+        "priority_boost_enabled": true
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 100,
+        "period_ms": 100,
+        "waitable_timer_kind": "default"
+      }
+    }
+  ]
+}

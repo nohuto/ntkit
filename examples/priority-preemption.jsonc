@@ -1,0 +1,60 @@
+// Background (Normal, Maximum) and Periodic (Highest, Low) share logical CPU 1 for 10s
+//
+// when Periodic wakes it takes the CPU from Background at once, Background gets the rest of each period
+// Periodic uses a high resolution waitable timer, its wake lateness stays small as nothing of a higher priority delays it
+
+{
+  "format": "thread-sim.run-config",
+  "version": 4,
+  "name": "Priority preemption",
+  "duration_s": 10,
+  "sample_interval_ms": 500,
+  "threads": [
+    {
+      "name": "Background",
+      "active": true,
+      "shared_mutex": false,
+      "scheduling": {
+        "relative_priority": "normal",
+        "priority_boost_enabled": true
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 100,
+        "period_ms": 100,
+        "waitable_timer_kind": "default"
+      }
+    },
+    {
+      "name": "Periodic",
+      "active": true,
+      "shared_mutex": false,
+      "scheduling": {
+        "relative_priority": "highest",
+        "priority_boost_enabled": true
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 25,
+        "period_ms": 100,
+        "waitable_timer_kind": "high_resolution"
+      }
+    }
+  ]
+}

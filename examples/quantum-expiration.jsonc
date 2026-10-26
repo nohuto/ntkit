@@ -1,0 +1,60 @@
+// two 'Maximum' threads of the same priority share logical CPU 1 for 10s
+//
+// neither of them waits, so each runs until its quantum ends and the other one takes the CPU
+// each gets ~half of the processor, a CS shows the switch here
+
+{
+  "format": "thread-sim.run-config",
+  "version": 4,
+  "name": "Quantum expiration",
+  "duration_s": 10,
+  "sample_interval_ms": 500,
+  "threads": [
+    {
+      "name": "First",
+      "active": true,
+      "shared_mutex": false,
+      "scheduling": {
+        "relative_priority": "normal",
+        "priority_boost_enabled": true
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 100,
+        "period_ms": 100,
+        "waitable_timer_kind": "default"
+      }
+    },
+    {
+      "name": "Second",
+      "active": true,
+      "shared_mutex": false,
+      "scheduling": {
+        "relative_priority": "normal",
+        "priority_boost_enabled": true
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 100,
+        "period_ms": 100,
+        "waitable_timer_kind": "default"
+      }
+    }
+  ]
+}

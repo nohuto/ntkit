@@ -1,0 +1,10 @@
+function(thread_sim_add_library target)
+    add_library(${target} STATIC ${ARGN})
+    target_link_libraries(${target} PRIVATE thread_sim_compile_settings)
+    target_include_directories(${target} PUBLIC "${PROJECT_SOURCE_DIR}/src")
+    target_precompile_headers(${target} PRIVATE "${PROJECT_SOURCE_DIR}/src/pch.h")
+endfunction()
+
+function(thread_sim_configure_executable target)
+    target_link_libraries(${target} PRIVATE thread_sim_compile_settings)
+endfunction()

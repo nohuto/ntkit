@@ -1,0 +1,5 @@
+add_subdirectory(platform)
+add_subdirectory(records)
+add_subdirectory(engine)
+add_subdirectory(ui)
+add_subdirectory(frame)

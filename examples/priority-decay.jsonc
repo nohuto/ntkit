@@ -1,0 +1,37 @@
+// boosted thread loses its boost one level at a time as its quanta end
+//
+// Decaying works 750ms of each 1000ms period, so it runs long after each wake
+// in the FG every level is 2 higher, that FG boost stays for the whole window
+
+{
+  "format": "thread-sim.run-config",
+  "version": 4,
+  "name": "Priority decay",
+  "duration_s": 15,
+  "sample_interval_ms": 500,
+  "threads": [
+    {
+      "name": "Decaying",
+      "active": true,
+      "shared_mutex": false,
+      "scheduling": {
+        "relative_priority": "normal",
+        "priority_boost_enabled": true
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          2
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 75,
+        "period_ms": 1000,
+        "waitable_timer_kind": "default"
+      }
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+BasedOnStyle: Microsoft
+
+AlignAfterOpenBracket: BlockIndent
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+
+BinPackArguments: false
+BinPackParameters: false
+
+ColumnLimit: 0
+IndentCaseBlocks: true
+InsertNewlineAtEOF: true
+PointerAlignment: Left
+SortIncludes: Never

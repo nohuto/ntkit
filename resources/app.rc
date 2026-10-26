@@ -1,0 +1,54 @@
+
+#include <winres.h>
+
+#include "resource.h"
+
+IDI_APPICON ICON "thread-sim.ico"
+
+IDI_TOOLBAR_START ICON "icons/start.ico"
+IDI_TOOLBAR_SUSPEND ICON "icons/suspend.ico"
+IDI_TOOLBAR_RESUME ICON "icons/resume.ico"
+IDI_TOOLBAR_STOP ICON "icons/stop.ico"
+IDI_TOOLBAR_STOP_ALL ICON "icons/stop-all.ico"
+IDI_TOOLBAR_ADD ICON "icons/add.ico"
+IDI_TOOLBAR_DUPLICATE ICON "icons/duplicate.ico"
+IDI_TOOLBAR_REMOVE ICON "icons/remove.ico"
+IDI_TOOLBAR_TOPOLOGY ICON "icons/topology.ico"
+IDI_TOOLBAR_EXPORT ICON "icons/export.ico"
+IDI_LIST_GRID_DARK ICON "icons/grid-dark.ico"
+IDI_LIST_GRID_LIGHT ICON "icons/grid-light.ico"
+
+1 RT_MANIFEST "app.manifest"
+
+#include "dialogs.rc"
+#include <win32ui/dialog/message_dialog.rc>
+#include <win32ui/theme/preset_editor.rc>
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION THREAD_SIM_VERSION_MAJOR, THREAD_SIM_VERSION_MINOR, THREAD_SIM_VERSION_PATCH, 0
+PRODUCTVERSION THREAD_SIM_VERSION_MAJOR, THREAD_SIM_VERSION_MINOR, THREAD_SIM_VERSION_PATCH, 0
+FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+FILEFLAGS 0
+FILEOS VOS_NT_WINDOWS32
+FILETYPE VFT_APP
+FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "CompanyName", "nohuto"
+            VALUE "FileDescription", "ThreadSim"
+            VALUE "FileVersion", THREAD_SIM_VERSION_STRING
+            VALUE "InternalName", "thread-sim"
+            VALUE "LegalCopyright", "Copyright (C) 2026 nohuto"
+            VALUE "OriginalFilename", "thread-sim.exe"
+            VALUE "ProductName", "ThreadSim"
+            VALUE "ProductVersion", THREAD_SIM_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

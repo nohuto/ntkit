@@ -1,0 +1,83 @@
+// three threads share logical CPU 1 for 30s
+//
+// 'Owner' (Lowest) and 'Waiter' (Highest) hold the shared mutex while they work, 'Competitor' (Normal) never waits
+// 'Competitor' keeps 'Owner' from running, so 'Owner' cannot release mutex and 'Waiter' waits for i
+
+{
+  "format": "thread-sim.run-config",
+  "version": 4,
+  "name": "Priority inversion",
+  "duration_s": 30,
+  "sample_interval_ms": 500,
+  "threads": [
+    {
+      "name": "Owner",
+      "active": true,
+      "shared_mutex": true,
+      "scheduling": {
+        "relative_priority": "lowest",
+        "priority_boost_enabled": true
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 50,
+        "period_ms": 100,
+        "waitable_timer_kind": "default"
+      }
+    },
+    {
+      "name": "Waiter",
+      "active": true,
+      "shared_mutex": true,
+      "scheduling": {
+        "relative_priority": "highest",
+        "priority_boost_enabled": true
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 25,
+        "period_ms": 100,
+        "waitable_timer_kind": "default"
+      }
+    },
+    {
+      "name": "Competitor",
+      "active": true,
+      "shared_mutex": false,
+      "scheduling": {
+        "relative_priority": "normal",
+        "priority_boost_enabled": true
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 100,
+        "period_ms": 100,
+        "waitable_timer_kind": "default"
+      }
+    }
+  ]
+}
