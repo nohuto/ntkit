@@ -3,6 +3,11 @@
 
 #pragma once
 
+#define THREAD_SIM_VERSION_MAJOR 0
+#define THREAD_SIM_VERSION_MINOR 1
+#define THREAD_SIM_VERSION_PATCH 0
+#define THREAD_SIM_VERSION_STRING "0.1.0"
+
 #define IDI_APPICON 1
 
 #define IDI_TOOLBAR_START 2000
@@ -15,11 +20,9 @@
 #define IDI_TOOLBAR_REMOVE 2007
 #define IDI_TOOLBAR_TOPOLOGY 2008
 #define IDI_TOOLBAR_EXPORT 2009
-// dark lines for a light list, light lines for a dark one
 #define IDI_LIST_GRID_DARK 2010
 #define IDI_LIST_GRID_LIGHT 2011
 
-// dialog templates use control IDs from src/frame/control_ids.h
 #define IDD_RUN_DURATION 100
 #define IDD_UPDATE_SPEED 101
 #define IDD_ACTIVITY 102
@@ -52,8 +55,3 @@
 #define IDC_TEXT_PROMPT_LABEL 2422
 
 #define IDC_DETAILS_LIST 2503
-
-#define THREAD_SIM_VERSION_MAJOR 0
-#define THREAD_SIM_VERSION_MINOR 1
-#define THREAD_SIM_VERSION_PATCH 0
-#define THREAD_SIM_VERSION_STRING "0.1.0"
