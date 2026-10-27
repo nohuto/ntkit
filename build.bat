@@ -17,7 +17,7 @@ if exist "%OUT%\thread-sim.exe.sig" del "%OUT%\thread-sim.exe.sig"
 if exist "%ZIP%.sig" del "%ZIP%.sig"
 powershell -NoProfile -ExecutionPolicy Bypass -File sign.ps1 "%OUT%\thread-sim.exe" || exit /b 1
 if exist "%OUT%\examples" rmdir /s /q "%OUT%\examples"
-xcopy /i /q /y examples\*.jsonc "%OUT%\examples\" >nul || exit /b 1
+xcopy /i /q /y assets\examples\*.jsonc "%OUT%\examples\" >nul || exit /b 1
 set "FILES=thread-sim.exe examples"
 if exist "%OUT%\thread-sim.exe.sig" set "FILES=thread-sim.exe thread-sim.exe.sig examples"
 if not exist build\dist mkdir build\dist

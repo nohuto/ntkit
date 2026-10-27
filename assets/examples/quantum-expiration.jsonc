@@ -1,21 +1,21 @@
-// two 'Maximum' threads share logical CPU 1 for 30s
-// 
-// 'Normal' runs whenever it wants to, 'Lowest' is ready all the time and gets almost no CPU time
-// about every 4s Windows raises a thread that waited that long in the ready state to priority 15 for a moment
+// two 'Maximum' threads of the same priority share logical CPU 1 for 10s, with dynamic boosts disabled
+//
+// use 'Normal' process priority, both workers then have base priority 8
+// after startup neither worker waits, so quantum expiration lets the other ready worker run
 
 {
   "format": "thread-sim.run-config",
-  "name": "CPU starvation",
-  "duration_s": 30,
+  "name": "Quantum expiration",
+  "duration_s": 10,
   "sample_interval_ms": 500,
   "threads": [
     {
-      "name": "Normal",
+      "name": "First",
       "active": true,
       "shared_mutex": false,
       "scheduling": {
         "relative_priority": "normal",
-        "priority_boost_enabled": true
+        "priority_boost_enabled": false
       },
       "affinity": {
         "mode": "group_affinity",
@@ -33,12 +33,12 @@
       }
     },
     {
-      "name": "Lowest",
+      "name": "Second",
       "active": true,
       "shared_mutex": false,
       "scheduling": {
-        "relative_priority": "lowest",
-        "priority_boost_enabled": true
+        "relative_priority": "normal",
+        "priority_boost_enabled": false
       },
       "affinity": {
         "mode": "group_affinity",

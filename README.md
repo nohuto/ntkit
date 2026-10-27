@@ -4,19 +4,27 @@ Tool for experimenting with thread scheduling, inspired by [CPUStress](https://g
 
 ## Features
 
-- Activity per thread, or a custom work, period and waitable timer (default or high resolution)
+- Activity per thread, or a custom work, period and waitable timer (default/high resolution)
 - Relative priority, priority boost, group affinity, CPU Sets, ideal processor per thread
 - Shared mutex for priority inversion
 - Process priority class, affinity, CPU Sets
 - Suspend, resume, stop threads
 - Thread state & wait reason, base & current priority, running priority distribution, context switches, CPU % and CPU time (`QueryThreadCycleTime`)
-- Some presets for specific scenarios (in `examples\`, see comments in each file for some additional notes): 
-  - CPU starvation
-  - Priority inversion
-  - Quantum expiration
-  - Priority preemption
-  - Priority boosting
-  - Priority decay
+- Some presets for specific scenarios in `assets\examples\`, see comments in each file for some additional notes:
+
+### Quantum Expiration
+
+See '[Priority Separation, Quantum](https://noverse.dev/docs/win-config/system/priority-separation/#quantum)' / '[Context Switching, WrQuantumEnd](https://noverse.dev/docs/windbg-notes/threads/thread-scheduling/context-switching/#wrquantumend)' for more details.
+
+### CPU Starvation
+
+### Priority Preemption
+
+### Priority Boosting
+
+### Priority Decay / Inversion
+
+Will be added soon.
 
 ## Verify Binaries
 
@@ -31,6 +39,10 @@ gpg --verify thread-sim.exe.sig thread-sim.exe
 ```
 
 It must show `Good signature from "nohuto <contact@noverse.dev>"`, made by the signing subkey `FF65 399D 1B28 95F6 CC34  BE79 1853 081F E103 04A2`.
+
+## Preview
+
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/thread-sim.png?raw=true)
 
 ## CL
 

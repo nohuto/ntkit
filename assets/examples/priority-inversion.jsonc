@@ -1,0 +1,9 @@
+// three threads share logical CPU 1 for 30s
+//
+// 'Owner' (Lowest) and 'Waiter' (Highest) hold the shared mutex while they work, 'Competitor' (Normal) never waits
+// 'Competitor' keeps 'Owner' from running, so 'Owner' cannot release mutex and 'Waiter' waits for i
+
+{
+  "format": "thread-sim.run-config",
+  "name": "Priority inversion"
+}

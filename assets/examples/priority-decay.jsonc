@@ -1,0 +1,7 @@
+// Decaying works 750ms of each 1000ms period, so it runs long after each wake
+// in the FG every level is 2 higher, that FG boost stays for the whole window
+
+{
+  "format": "thread-sim.run-config",
+  "name": "Priority decay"
+}

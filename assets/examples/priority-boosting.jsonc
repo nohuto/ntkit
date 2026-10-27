@@ -1,16 +1,16 @@
-// two 'Maximum' threads of the same priority share logical CPU 1 for 10s
+// two 'Busy' threads on separate logical CPUs for 15s, one with priority boost and one without
 //
-// neither of them waits, so each runs until its quantum ends and the other one takes the CPU
-// each gets ~half of the processor, a CS shows the switch here
+// use 'Normal' process priority and keep thread-sim in the FG, with PsPrioritySeparation > 0 
+// each worker works in the first 75ms of each 100ms period and waits on a timer for the next period
 
 {
   "format": "thread-sim.run-config",
-  "name": "Quantum expiration",
-  "duration_s": 10,
+  "name": "Priority boosting",
+  "duration_s": 15,
   "sample_interval_ms": 500,
   "threads": [
     {
-      "name": "First",
+      "name": "Boost on",
       "active": true,
       "shared_mutex": false,
       "scheduling": {
@@ -21,36 +21,36 @@
         "mode": "group_affinity",
         "group_affinity_group": 0,
         "group_affinity_processors": [
-          1
+          2
         ],
         "selected_cpu_set_ids": [],
         "ideal_processor": null
       },
       "activity": {
-        "work_percent": 100,
+        "work_percent": 75,
         "period_ms": 100,
         "waitable_timer_kind": "default"
       }
     },
     {
-      "name": "Second",
+      "name": "Boost off",
       "active": true,
       "shared_mutex": false,
       "scheduling": {
         "relative_priority": "normal",
-        "priority_boost_enabled": true
+        "priority_boost_enabled": false
       },
       "affinity": {
         "mode": "group_affinity",
         "group_affinity_group": 0,
         "group_affinity_processors": [
-          1
+          3
         ],
         "selected_cpu_set_ids": [],
         "ideal_processor": null
       },
       "activity": {
-        "work_percent": 100,
+        "work_percent": 75,
         "period_ms": 100,
         "waitable_timer_kind": "default"
       }

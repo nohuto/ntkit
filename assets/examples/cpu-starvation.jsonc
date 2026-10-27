@@ -1,16 +1,17 @@
-// Background (Normal, Maximum) and Periodic (Highest, Low) share logical CPU 1 for 10s
+// two 'Maximum' threads share logical CPU 1 for 30s
 //
-// when Periodic wakes it takes the CPU from Background at once, Background gets the rest of each period
-// Periodic uses a high resolution waitable timer, its wake lateness stays small as nothing of a higher priority delays it
+// use 'Normal' process priority, 'Normal' then has base priority 8 and 'Lowest' has base priority 6
+// after startup neither worker waits, 'Lowest' stays ready for long intervals while 'Normal' runs
+// Windows can then temporarily boost a starved worker so it gets time
 
 {
   "format": "thread-sim.run-config",
-  "name": "Priority preemption",
-  "duration_s": 10,
+  "name": "CPU starvation",
+  "duration_s": 30,
   "sample_interval_ms": 500,
   "threads": [
     {
-      "name": "Background",
+      "name": "Normal",
       "active": true,
       "shared_mutex": false,
       "scheduling": {
@@ -33,11 +34,11 @@
       }
     },
     {
-      "name": "Periodic",
+      "name": "Lowest",
       "active": true,
       "shared_mutex": false,
       "scheduling": {
-        "relative_priority": "highest",
+        "relative_priority": "lowest",
         "priority_boost_enabled": true
       },
       "affinity": {
@@ -50,9 +51,9 @@
         "ideal_processor": null
       },
       "activity": {
-        "work_percent": 25,
+        "work_percent": 100,
         "period_ms": 100,
-        "waitable_timer_kind": "high_resolution"
+        "waitable_timer_kind": "default"
       }
     }
   ]
