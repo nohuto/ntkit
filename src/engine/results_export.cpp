@@ -20,9 +20,8 @@ namespace
 using platform::FormatFixed;
 using platform::FormatUnsigned;
 
-// column names and units are stable, empty fields mean unavailable
+// column names and units are stable
 constexpr const wchar_t* kColumns[] = {
-    L"schema",
     L"run_id",
     L"requested_duration_s",
     L"thread_index",
@@ -271,7 +270,6 @@ std::wstring BuildThreadResultsCsv(const ExportInput& input)
         const ThreadAffinityConfig& affinity_config = thread.affinity;
         const ActivityRelevance relevance = RelevanceOf(thread.activity);
         std::vector<std::wstring> row;
-        row.push_back(kResultsCsvSchema);
         row.push_back(snapshot.run_id);
         row.push_back(Number(snapshot.requested_duration_s));
         row.push_back(FormatUnsigned(index));
@@ -365,7 +363,6 @@ std::wstring BuildRunMetadataJson(const ExportInput& input)
     win32ui::JsonWriter writer;
     writer.BeginObject();
     writer.String(L"format", L"thread-sim.run-metadata");
-    writer.Unsigned(L"version", kRunMetadataVersion);
     writer.String(L"app_version", input.app_version);
     if (input.snapshot)
     {
@@ -506,7 +503,7 @@ std::wstring BuildRunMetadataJson(const ExportInput& input)
             writer.Null(L"process");
         }
     }
-    // use caller values only when Start captured none
+
     const platform::Environment& environment = input.snapshot && input.snapshot->environment ? *input.snapshot->environment : input.environment;
     const platform::Topology* run_topology = input.snapshot && input.snapshot->topology ? input.snapshot->topology.get() : input.topology;
     writer.BeginObject(L"environment");
@@ -591,7 +588,6 @@ std::wstring BuildRunMetadataJson(const ExportInput& input)
 
 platform::Status ExportResults(const std::wstring& base_path, const ExportInput& input)
 {
-    // UTF-8 BOM lets spreadsheets detect encoding
     const std::string csv = "\xEF\xBB\xBF" + platform::WideToUtf8(BuildThreadResultsCsv(input));
     if (platform::Status status = platform::WriteFileAtomic(base_path + L".csv", csv); !status)
     {

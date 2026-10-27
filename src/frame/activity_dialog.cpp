@@ -116,7 +116,6 @@ class ActivityDialog final : public win32ui::DialogWindow
 
   private:
     // typed values apply immediately within range, leaving shows the clamped value
-    // empty fields restore the last value
     bool Number(int code, HWND control, uint32_t* target, uint32_t minimum, uint32_t maximum)
     {
         if (code != EN_CHANGE && code != EN_KILLFOCUS)

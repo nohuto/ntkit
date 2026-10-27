@@ -16,8 +16,6 @@
 namespace thread_sim::frame
 {
 
-// edits threads from the focused thread activity, true if OK changed config
-// focus selects the initial field, kNone focuses OK
 bool ShowActivityDialog(HWND owner, engine::RunConfig* config, const std::vector<uint32_t>& threads, int focused, engine::Field focus = engine::Field::kNone);
 
 } // namespace thread_sim::frame

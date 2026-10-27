@@ -138,12 +138,12 @@ void ShowPresetProblem(HWND owner, std::wstring_view message, const std::wstring
     ui::ShowMessage(owner, std::move(spec));
 }
 
-// create missing files only, leave other access failures alone
-bool FileMissing(const std::wstring& path)
+bool FileMissingOrEmpty(const std::wstring& path)
 {
-    if (GetFileAttributesW(path.c_str()) != INVALID_FILE_ATTRIBUTES)
+    WIN32_FILE_ATTRIBUTE_DATA data = {};
+    if (GetFileAttributesExW(path.c_str(), GetFileExInfoStandard, &data))
     {
-        return false;
+        return data.nFileSizeHigh == 0 && data.nFileSizeLow == 0;
     }
     const DWORD error = GetLastError();
     return error == ERROR_FILE_NOT_FOUND || error == ERROR_PATH_NOT_FOUND;
@@ -174,8 +174,7 @@ void MainWindow::LoadThemePresets()
         return;
     }
     theme_presets_ = win32ui::BuiltInThemePresets();
-    // unreadable files stay unchanged until presets are saved
-    if (!path.empty() && result.error == win32ui::ThemePresetError::read_failed && FileMissing(path))
+    if (!path.empty() && result.error == win32ui::ThemePresetError::read_failed && FileMissingOrEmpty(path))
     {
         SaveThemePresets();
     }
@@ -213,7 +212,6 @@ void MainWindow::SaveThemePresets()
     {
         return;
     }
-    // startup load saves before window creation
     if (hwnd_)
     {
         ShowPresetProblem(hwnd_, L"The theme presets could not be saved.", path, result);
@@ -234,7 +232,6 @@ void MainWindow::ApplyThemePreset(const std::wstring& name)
     if (hwnd_)
     {
         ApplyTheme();
-        // View > Theme > Custom can trigger the first preset load
         ShowThemePresetsProblem();
     }
 }

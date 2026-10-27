@@ -126,8 +126,6 @@ void DetailsWindow::FitColumns()
 {
     RECT client = {};
     GetClientRect(list_, &client);
-    // narrow columns get their widest text, wider columns share remaining space
-    // extra room goes to Value, keeping columns side by side
     const int usable = std::max(Px(200), static_cast<int>(client.right) - win32ui::SystemMetricForDpi(SM_CXVSCROLL, dpi()));
     std::array<int, 4> order = {0, 1, 2, 3};
     std::sort(order.begin(), order.end(), [&](int a, int b) { return wanted_[static_cast<size_t>(a)] < wanted_[static_cast<size_t>(b)]; });

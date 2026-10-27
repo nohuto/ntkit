@@ -24,16 +24,10 @@ struct ExportInput
     std::wstring app_version;
 };
 
-inline constexpr wchar_t kResultsCsvSchema[] = L"thread-sim.thread-results.v5";
-inline constexpr uint32_t kRunMetadataVersion = 5;
-
-// exports requested settings, applied outcomes, notices and process measurements
-// inactive rows have no applied or measured fields, empty measurements mean unavailable
 std::wstring BuildThreadResultsCsv(const ExportInput& input);
 std::wstring BuildRunMetadataJson(const ExportInput& input);
 std::wstring CsvQuote(std::wstring_view field);
 
-// writes both <base>.csv and <base>.json
 platform::Status ExportResults(const std::wstring& base_path, const ExportInput& input);
 
 } // namespace thread_sim::engine

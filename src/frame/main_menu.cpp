@@ -50,7 +50,6 @@ constexpr win32ui::Shortcut kShortcuts[] = {
     {cmd::kThreadMoveDown, FALT, VK_DOWN, L"Alt+Down"},
     {cmd::kThreadRename, 0, VK_F2, L"F2"},
     {cmd::kThreadDetails, FALT, VK_RETURN, L"Alt+Enter"},
-    // F5 matches Explorer and Task Manager, run shortcuts follow Visual Studio
     {cmd::kViewRefresh, 0, VK_F5, L"F5"},
     {cmd::kRunStart, FCONTROL, VK_F5, L"Ctrl+F5"},
     {cmd::kRunSuspend, 0, VK_F7, L"F7"},
@@ -63,7 +62,6 @@ constexpr win32ui::Shortcut kShortcuts[] = {
 
 const wchar_t* ShortcutText(int command)
 {
-    // table handles Space, an accelerator would steal it from edits
     if (command == cmd::kThreadActive)
     {
         return L"Space";

@@ -43,15 +43,12 @@ struct PickerOptions
 {
     PickerMode mode = PickerMode::kBrowse;
     std::wstring title;
-    // single processor mode, Clear leaves no selection
     bool allow_none = false;
-    // selection messages shown below the list
     std::function<std::vector<PickerMessage>(const PickerSelection&)> validate;
 };
 
 std::optional<PickerSelection> ShowProcessorPicker(HWND owner, const PickerOptions& options, const platform::Topology& topology, const PickerSelection& initial);
 #if defined(THREAD_SIM_DEV)
-// shown group count, extra groups copy the first real group
 void SetDevProcessorGroups(uint16_t count);
 #endif
 

@@ -13,12 +13,9 @@
 namespace thread_sim::frame
 {
 
-// store layout in 96 DPI units across DPI changes
-// window rect uses physical pixels plus capture DPI
 struct UiSettings
 {
     win32ui::ThemeMode theme = win32ui::ThemeMode::system;
-    // custom preset name in data folder theme_presets.rktheme
     std::wstring theme_preset;
     bool has_window = false;
     RECT window = {};

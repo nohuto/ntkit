@@ -100,7 +100,6 @@ void MainWindow::CreateToolbar()
 
 void MainWindow::ReplaceFonts(UINT dpi)
 {
-    // controls switch fonts before the previous set is destroyed at scope exit
     win32ui::FontSet next;
     next.Create(dpi);
     std::swap(fonts_, next);
@@ -118,7 +117,6 @@ void MainWindow::ApplyFontsAndMetrics()
 void MainWindow::ApplyTheme()
 {
     const int64_t start = platform::QpcClock::Now();
-    // update menu first, caption reapply repaints the frame and menu bar
     menu_.bar().ApplyTheme();
     win32ui::ReapplyTheme(hwnd_);
     perf_.Event("theme_apply", ElapsedMs(start), "dark", win32ui::ThemeDark() ? 1 : 0);
@@ -126,7 +124,6 @@ void MainWindow::ApplyTheme()
 
 void MainWindow::Layout()
 {
-    // SetMenu and child creation send WM_SIZE before all children exist
     if (!hwnd_ || !children_ready_ || IsIconic(hwnd_))
     {
         return;

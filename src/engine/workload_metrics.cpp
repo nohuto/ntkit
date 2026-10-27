@@ -107,9 +107,6 @@ uint64_t PeriodSchedule::Containing(int64_t now) const noexcept
 
 PeriodDecision PeriodSchedule::Next(int64_t now, uint64_t expected) const noexcept
 {
-    // work until the first batch check at work_end, crossing the next boundary counts one overrun
-    // windows from expected through current - 1 are missed
-    // work the remaining current window or miss it and wait for the next boundary
     const uint64_t current = Containing(now);
     const uint64_t candidate = std::max(current, expected);
     const bool work = now >= Boundary(candidate) && now < WorkEnd(candidate);

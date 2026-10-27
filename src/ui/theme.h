@@ -21,15 +21,10 @@ namespace thread_sim::ui
 using win32ui::SetTextRole;
 using win32ui::TextRole;
 
-// dialog theme, lives for the whole run
 const win32ui::DialogTheme* DialogThemeHooks();
-// list frame and menu labels, live for the whole run
 const win32ui::ListViewHooks* ListHooks();
-// toolbar frame, window supplies icons, tips and dropdown
 win32ui::ToolbarHooks ToolbarHooks();
-// status bar frame, window supplies tips and messages
 win32ui::StatusBarHooks StatusBarHooks();
-// dark/light grid icons and shared grid toggle
 void SetListGrid(int dark_lines_icon, int light_lines_icon, std::function<void(bool)> changed);
 
 } // namespace thread_sim::ui

@@ -38,7 +38,7 @@ namespace thread_sim::frame
 inline constexpr wchar_t kMainWindowClass[] = L"thread-sim.MainWindow";
 inline constexpr UINT kSnapshotMessage = WM_APP + 1;
 
-// milliseconds since process creation, for timing logs
+// milliseconds since process creation
 double MsSinceProcessStart();
 
 // development timing log as JSON lines, --dev perf log
@@ -54,7 +54,6 @@ class PerfLog
     FILE* file_ = nullptr;
 };
 
-// startup environment, distinct from platform::Environment captured for each run
 struct ApplicationEnvironment
 {
     platform::Topology topology;
@@ -91,7 +90,6 @@ class MainWindow final : public engine::NotificationSink
 
     void CreateChildren();
     void CreateToolbar();
-    // toolbar tooltip, Start includes duration and sample interval
     std::wstring ToolTipText(int command) const;
     void Layout();
     void ShowBars();
@@ -101,13 +99,10 @@ class MainWindow final : public engine::NotificationSink
     void OnDpiChanged(UINT dpi, const RECT* suggested);
     void OnCommand(int id);
     bool CommandEnabled(int id) const;
-    // selected is sorted, read once when checking multiple commands
     bool CommandEnabled(int id, const std::vector<uint32_t>& selected) const;
     bool CommandChecked(int id) const;
     bool CommandChecked(int id, const std::vector<uint32_t>& selected) const;
-    // label for menu items showing current values, empty for other items
     std::wstring CommandText(int id) const;
-    // setting commands use the focused selected thread, else the first selected thread
     int RepresentativeThread(const std::vector<uint32_t>& selected) const;
     void UpdateCommandStates();
     void UpdateStatus();
@@ -115,12 +110,9 @@ class MainWindow final : public engine::NotificationSink
     void OnConfigChanged(bool structural);
     void Revalidate();
     void OnSelectionChanged();
-    // assign fresh keys when loading or creating a config
     void ResetThreadKeys();
-    // index in current or last run, -1 if added afterward
     int RunIndexOfRow(size_t row) const;
     void ShowDetails();
-    // refreshes details, closes windows for removed threads
     void UpdateDetails();
     std::wstring RunTipText() const;
     void OnSnapshotReady();
@@ -139,7 +131,6 @@ class MainWindow final : public engine::NotificationSink
     void SetThreadRelativePriority(engine::RelativeThreadPriority relative_priority);
     void ToggleThreadPriorityBoost();
     void ToggleThreadSharedMutex();
-    // focused thread in threads determines whether all become active or inactive
     void ToggleThreadActive(const std::vector<uint32_t>& threads);
     void SetThreadActivityLevel(engine::ActivityLevel level);
     void EditThreadActivity(engine::Field focus = engine::Field::kNone);
@@ -151,26 +142,19 @@ class MainWindow final : public engine::NotificationSink
     HMENU BuildPriorityMenu(const std::vector<uint32_t>& selected) const;
     HMENU BuildActivityMenu(const std::vector<uint32_t>& selected) const;
     void ShowContextMenu(POINT screen);
-    // Run > Duration under Start, button uses screen coordinates
     void ShowDurationMenu(const RECT& button);
     void ShowAbout();
     void RefreshEnvironment();
-    // other process threads after configured threads, View > Show all threads
-    void ShowAllThreads(bool show);
-    // samples now between runs, coordinator includes them in run samples
+    void ShowAllThreads(bool show); // View > Show all threads
     void SampleOtherThreads();
-    // idle sampling adopts interval changes immediately
     void FollowSampleInterval();
     void SetProcessPriorityClass(DWORD priority_class);
     void EditProcessPlacement(int command);
     void SaveSettings();
     std::wstring ThemePresetsPath() const;
-    // once per run, adds missing built ins and writes a missing file
     void LoadThemePresets();
-    // reports prior file read/write failures once the window exists
     void ShowThemePresetsProblem();
     void SaveThemePresets();
-    // selects the named custom preset or the first, caller saves settings
     void ApplyThemePreset(const std::wstring& name);
     void ShowThemePresets();
     void RestorePlacement(int show_command);
@@ -185,6 +169,7 @@ class MainWindow final : public engine::NotificationSink
     UINT dpi_ = 96;
     MainMenu menu_;
     UiSettings settings_;
+    std::optional<platform::Error> settings_problem_;
     PerfLog perf_;
     std::vector<win32ui::ThemePreset> theme_presets_;
     bool presets_loaded_ = false;

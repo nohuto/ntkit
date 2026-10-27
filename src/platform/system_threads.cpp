@@ -220,7 +220,7 @@ Result<std::vector<SystemThread>> SystemThreadQuery::QueryCurrentProcess()
         auto threads = full_sample();
         if (threads && !current_process_thread_ids_.empty())
         {
-            // compare IDs because a new thread can replace an exited thread without changing the count
+            // compare IDs as a new thread can replace an exited thread without changing the count
             current_process_threads_incomplete_ = std::any_of(threads->begin(), threads->end(), [&](const auto& thread) {
                 return !std::binary_search(current_process_thread_ids_.begin(), current_process_thread_ids_.end(), thread.thread_id);
             });

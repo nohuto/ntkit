@@ -229,7 +229,6 @@ RunController::~RunController()
         RequestStopAll();
         if (WaitForSingleObject(coordinator_.get(), 5000) != WAIT_OBJECT_0)
         {
-            // live coordinator retains all state, including the disconnected mailbox
             mailbox_->DisconnectSink();
             state_.release();
             coordinator_.release();

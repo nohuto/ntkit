@@ -705,7 +705,7 @@ class Execution
             }
             if (!realign)
             {
-                // mutex waits past the work window count as missed periods, like late wakes
+                // mutex waits past the work window count as missed periods
                 if (!continuous && !worked)
                 {
                     thread.counters.missed.fetch_add(1, std::memory_order_relaxed);
@@ -749,7 +749,7 @@ class Execution
     }
 
     // thread cycles use time stamp counter ticks, measure their rate against QPC
-    // GetThreadTimes charges whole clock ticks and reports about half for 25 ms bursts
+    // GetThreadTimes charges whole clock ticks and reports about half for 25ms bursts
     void MeasureCycleRate()
     {
         const int64_t now = QpcClock::Now();
@@ -864,7 +864,7 @@ class Execution
                     const int64_t now = QpcClock::Now();
                     observed.cycles_total = cycles;
                     // samples just after start or acknowledgement are too short for a share
-                    // extend the interval until a sample at least 50 ms later
+                    // extend the interval until a sample at least 50ms later
                     const bool long_enough = now - thread.last_qpc >= QpcClock::Frequency() / 20;
                     if (thread.last_cycles && long_enough)
                     {

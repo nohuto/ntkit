@@ -5,7 +5,6 @@
 
 {
   "format": "thread-sim.run-config",
-  "version": 4,
   "name": "CPU starvation",
   "duration_s": 30,
   "sample_interval_ms": 500,

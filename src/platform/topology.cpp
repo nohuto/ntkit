@@ -52,7 +52,6 @@ struct RawRecord
     std::span<const std::byte> bytes;
 };
 
-// callers must check offset + sizeof(T) against bytes.size()
 template <typename T>
 T Load(std::span<const std::byte> bytes, size_t offset) noexcept
 {

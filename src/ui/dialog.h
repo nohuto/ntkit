@@ -25,9 +25,7 @@ inline constexpr wchar_t kDialogClass[] = L"thread-sim.Dialog";
 
 void RegisterDialogClass(HINSTANCE instance, int icon);
 
-// library message dialog with thread-sim Copy details
 INT_PTR ShowMessage(HWND owner, win32ui::MessageSpec spec);
-// fixed size dialog with one row per entry and OK
 void ShowAbout(HWND owner, std::wstring_view title, std::vector<std::wstring> lines);
 void ShowError(HWND owner, std::wstring_view title, std::wstring_view summary, const platform::Error& error);
 

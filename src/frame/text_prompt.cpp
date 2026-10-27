@@ -43,7 +43,6 @@ class TextPromptDialog final : public win32ui::DialogWindow
     {
         SetWindowTextW(hwnd(), title_.c_str());
         SetDlgItemTextW(hwnd(), IDC_TEXT_PROMPT_LABEL, label_.c_str());
-        // template label was fitted while empty
         win32ui::FitDialogText(hwnd());
         edit_ = GetDlgItem(hwnd(), ids::kTextPromptEdit);
         ui::SetAccessibleName(edit_, label_);

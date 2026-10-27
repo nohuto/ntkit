@@ -13,7 +13,7 @@
 namespace thread_sim::platform
 {
 
-// cycle to time conversion requires a time stamp counter invariant across frequency and power states
+// cycle to time conversion requires a time stamp counter invariant across frequency & power states
 inline bool InvariantTimeStampCounter() noexcept
 {
     static const bool invariant = [] {
@@ -29,7 +29,6 @@ inline bool InvariantTimeStampCounter() noexcept
     return invariant;
 }
 
-// QPC measures elapsed wall time, not CPU time or cycles
 struct QpcClock
 {
     static int64_t Frequency() noexcept
@@ -57,7 +56,7 @@ struct QpcClock
     }
 };
 
-// FILETIME and GetThreadTimes use 100 ns units
+// FILETIME and GetThreadTimes use 100ns units
 inline uint64_t FileTimeTo100ns(const FILETIME& time) noexcept
 {
     return (static_cast<uint64_t>(time.dwHighDateTime) << 32) | time.dwLowDateTime;

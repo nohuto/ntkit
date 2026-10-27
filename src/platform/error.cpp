@@ -115,7 +115,6 @@ std::wstring Error::Describe() const
     std::wstring code_text = CodeText();
     if (!code_text.empty() && !detail.empty() && (domain == ErrorDomain::kWin32 || domain == ErrorDomain::kHResult || domain == ErrorDomain::kNtStatus))
     {
-        // keep system meaning beside the code when custom detail provides the main text
         const std::wstring system = domain == ErrorDomain::kNtStatus ? FormatNtStatus(static_cast<LONG>(code)) : FormatWin32Error(static_cast<DWORD>(code));
         if (!system.empty())
         {

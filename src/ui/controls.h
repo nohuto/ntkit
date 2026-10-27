@@ -26,9 +26,7 @@ std::wstring GetText(HWND hwnd);
 void SetTextIfChanged(HWND hwnd, std::wstring_view text);
 void SetEnabled(HWND hwnd, bool enabled);
 void SetVisible(HWND hwnd, bool visible);
-// selected rows in ascending order, stops if the control stops advancing, including on destruction
 std::vector<int> SelectedRows(HWND list);
-// numbers compare by value, other text ignores case
 int CompareCellText(const std::wstring& left, const std::wstring& right);
 int ComboIndex(HWND combo);
 void SetComboIndex(HWND combo, int index);

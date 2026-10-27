@@ -18,11 +18,9 @@
 namespace thread_sim::frame
 {
 
-// live config, readback and measurements for one thread
 class DetailsWindow final : public win32ui::DialogWindow
 {
   public:
-    // thread_key identifies the thread across main window reorders
     explicit DetailsWindow(uint64_t thread_key)
         : thread_key_(thread_key)
     {
@@ -32,7 +30,6 @@ class DetailsWindow final : public win32ui::DialogWindow
         return thread_key_;
     }
     bool Open(HWND owner);
-    // run and observed are null before the first thread run
     void Show(const engine::ThreadConfig& requested, const engine::RunSnapshot* run, const engine::ThreadSnapshot* observed);
 
   protected:

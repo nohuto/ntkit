@@ -12,7 +12,6 @@ inline constexpr int kToolbar = 1001;
 inline constexpr int kStatusBar = 1002;
 inline constexpr int kThreadTable = 1006;
 
-// processor pickers, message dialogs reserve 2001 to 2099 in ui/dialog_ids.h
 inline constexpr int kPickerList = 2101;
 inline constexpr int kPickerGroupCombo = 2102;
 inline constexpr int kPickerSelectAll = 2104;
@@ -92,13 +91,12 @@ inline constexpr int kThemePresets = 40419;
 
 inline constexpr int kHelpAbout = 40501;
 
-// applies to the thread-sim process immediately
 inline constexpr int kProcessPriorityFirst = 40701; // + index into kPriorityClasses
 inline constexpr int kProcessPriorityLast = 40706;
 inline constexpr int kProcessAffinity = 40710;
 inline constexpr int kProcessCpuSets = 40711;
 
-// development builds only
+// dev builds only
 inline constexpr int kDevSimulateDpiFirst = 40621; // 96, 120, 144, 192
 inline constexpr int kDevSimulateDpiLast = 40624;
 

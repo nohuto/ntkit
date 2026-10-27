@@ -33,7 +33,6 @@ struct ColumnSpec
     bool right;
 };
 
-// TableColumn order, CPU % per logical processor, 100 means one continuously busy processor
 constexpr ColumnSpec kColumns[] = {
     {L"Name", 140, false},
     {L"#", 36, true},
@@ -126,7 +125,6 @@ HWND ThreadTable::Create(HWND parent, int id)
         *text = static_cast<const ThreadTable*>(context)->RowText(row, static_cast<TableColumn>(subitem));
         return true;
     };
-    // virtual list requests ThreadConfig::active as a state image with text
     win32ui::AttachListView(list_, &hooks_, LVS_EX_CHECKBOXES);
     win32ui::ShowListGridButton(list_);
     ListView_SetCallbackMask(list_, LVIS_STATEIMAGEMASK);
@@ -149,14 +147,12 @@ void ThreadTable::ApplyColumns(const std::vector<int>& widths, UINT dpi)
     {
         win32ui::ListColumn& column = columns[index];
         column.title = kColumns[index].title;
-        // list view keeps subitem 0 left aligned
         column.format = kColumns[index].right && index != 0 ? LVCFMT_RIGHT : LVCFMT_LEFT;
         column.default_width_dip = win32ui::Unscale(defaults[index], dpi);
         column.width_dip = widths[index] > 0 ? win32ui::Unscale(widths[index], dpi) : column.default_width_dip;
         column.visible = widths[index] > 0;
     }
     win32ui::SetListColumns(list_, columns);
-    // keep exact pixels, converting through DIPs can lose a pixel
     for (size_t index = 0; index < kColumnCount; ++index)
     {
         ListView_SetColumnWidth(list_, static_cast<int>(index), widths[index]);
@@ -179,7 +175,6 @@ void ThreadTable::SetData(const engine::RunConfig* config, std::shared_ptr<const
 
 void ThreadTable::SetOtherThreads(std::shared_ptr<const std::vector<engine::OtherThreadSnapshot>> threads)
 {
-    // preserve row order across samples of the same threads
     const size_t count = threads ? threads->size() : 0;
     bool same = count == other_view_.size() && (!others_) == (!threads);
     for (size_t index = 0; same && index < count; ++index)
@@ -267,7 +262,7 @@ void ThreadTable::RefreshAll(bool others_only)
         InvalidateRect(list_, nullptr, FALSE);
         return;
     }
-    // configured rows stay unchanged, update only the other thread area
+
     shown_.resize(view_.size());
     shown_.resize(static_cast<size_t>(count));
     RECT area = {};
@@ -331,13 +326,11 @@ void ThreadTable::RefreshVisible(bool others_only)
 
 void ThreadTable::ReadColumnEdges()
 {
-    HWND header = ListView_GetHeader(list_);
     for (size_t column = 0; column < kColumnCount; ++column)
     {
         RECT rect = {};
-        // header items use subitem order, display order moves their rectangles only
-        Header_GetItemRect(header, static_cast<int>(column), &rect);
-        MapWindowPoints(header, list_, reinterpret_cast<POINT*>(&rect), 2);
+        // hidden column has no cells to repaint
+        win32ui::ListColumnRect(list_, static_cast<int>(column), &rect);
         column_edges_[column] = {rect.left, rect.right};
     }
 }
@@ -548,7 +541,6 @@ LRESULT ThreadTable::CustomDraw(NMLVCUSTOMDRAW* draw)
         return CDRF_NOTIFYSUBITEMDRAW | (OtherAt(row) ? CDRF_NEWFONT : 0);
     case CDDS_ITEMPREPAINT | CDDS_SUBITEM:
         {
-            // list lays out all cells in repainted rows, skip cells outside the update region
             const size_t index = static_cast<size_t>(draw->iSubItem);
             if (index < kColumnCount && row_bounds_.bottom > row_bounds_.top)
             {
@@ -557,7 +549,7 @@ LRESULT ThreadTable::CustomDraw(NMLVCUSTOMDRAW* draw)
                 {
                     return CDRF_SKIPDEFAULT;
                 }
-                // record painted cells here, text requests also come from UI Automation and other readers
+                // record painted cells here
                 if (row >= 0 && static_cast<size_t>(row) < shown_.size())
                 {
                     shown_[static_cast<size_t>(row)][index] = RowText(row, static_cast<TableColumn>(index));
@@ -624,7 +616,7 @@ int ThreadTable::CheckBoxAt(POINT point) const
     LVHITTESTINFO hit = {};
     hit.pt = point;
     const int row = ListView_HitTest(list_, &hit);
-    return row >= 0 && (hit.flags & LVHT_ONITEMSTATEICON) ? ThreadAt(row) : -1;
+    return row >= 0 && (hit.flags & LVHT_ONITEM) == LVHT_ONITEMSTATEICON ? ThreadAt(row) : -1;
 }
 
 void ThreadTable::RedrawCheckBoxes(const std::vector<uint32_t>& threads)

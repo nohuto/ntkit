@@ -16,13 +16,10 @@ struct AppOptions
 {
     std::wstring data_dir;
     std::wstring config_path;
-    // development builds only, otherwise command line parsing rejects these
-    // zero based thread setter fails at next Start for failure dialog tests
+    // dev builds only, otherwise command line parsing rejects these
     std::optional<size_t> dev_fail_setter;
     UINT dev_dpi = 0;
-    // message font point size, like increased Windows text size
     int dev_font_points = 0;
-    // extra picker processor groups copy the first actual group
     uint16_t dev_groups = 0;
     std::wstring dev_perf_log;
 };

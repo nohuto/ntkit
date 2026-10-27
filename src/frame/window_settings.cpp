@@ -10,6 +10,7 @@
 #include <win32ui/json/reader.h>
 #include <win32ui/json/writer.h>
 
+#include <algorithm>
 #include <set>
 
 namespace thread_sim::frame
@@ -19,8 +20,6 @@ namespace
 {
 
 constexpr wchar_t kFormat[] = L"thread-sim.ui-settings";
-// ignore older settings and use defaults
-constexpr uint64_t kVersion = 4;
 // dont save oversized preset names so other settings remain readable
 constexpr size_t kMaxThemePreset = 256;
 
@@ -46,13 +45,22 @@ platform::Result<UiSettings> LoadUiSettings(const std::wstring& path)
     auto text = platform::ReadUtf8File(path, 1024 * 1024);
     if (!text)
     {
+        const platform::Error& failure = text.error();
+        // a missing file means defaults
+        if (failure.domain == platform::ErrorDomain::kWin32 && (failure.code == ERROR_FILE_NOT_FOUND || failure.code == ERROR_PATH_NOT_FOUND))
+        {
+            return UiSettings{};
+        }
         return std::move(text).error();
+    }
+    UiSettings settings;
+    if (text.value().empty())
+    {
+        return settings;
     }
     std::wstring error;
     win32ui::JsonReader reader(text.value(), json::Errors(&error));
-    UiSettings settings;
     bool format_ok = false;
-    uint64_t version = 0;
     std::set<std::wstring> seen;
     const bool ok = reader.Object([&](const std::wstring& key) {
         if (!seen.insert(key).second)
@@ -68,10 +76,6 @@ platform::Result<UiSettings> LoadUiSettings(const std::wstring& path)
             }
             format_ok = format == kFormat;
             return true;
-        }
-        if (key == L"version")
-        {
-            return reader.Unsigned(&version);
         }
         if (key == L"theme")
         {
@@ -165,10 +169,6 @@ platform::Result<UiSettings> LoadUiSettings(const std::wstring& path)
     {
         return platform::FormatError(L"Read UI settings", L"The file is not a ThreadSim settings file.").WithContext(path);
     }
-    if (version != kVersion)
-    {
-        return platform::FormatError(L"Read UI settings", L"The settings were saved by another version of ThreadSim.").WithContext(path);
-    }
     if (settings.has_window && (settings.window.right - settings.window.left < 100 || settings.window.bottom - settings.window.top < 100))
     {
         settings.has_window = false;
@@ -181,7 +181,6 @@ platform::Status SaveUiSettings(const std::wstring& path, const UiSettings& sett
     win32ui::JsonWriter writer;
     writer.BeginObject();
     writer.String(L"format", kFormat);
-    writer.Unsigned(L"version", kVersion);
     writer.String(L"theme", win32ui::ThemeModeName(settings.theme));
     writer.String(L"theme_preset", settings.theme_preset.size() <= kMaxThemePreset ? settings.theme_preset : std::wstring());
     if (settings.has_window)
@@ -198,7 +197,8 @@ platform::Status SaveUiSettings(const std::wstring& path, const UiSettings& sett
     writer.BeginArray(L"column_widths_dip");
     for (int width : settings.column_widths_dip)
     {
-        writer.Signed({}, width);
+        // the reader accepts 0 to 4000
+        writer.Signed({}, std::clamp(width, 0, 4000));
     }
     writer.EndArray();
     writer.String(L"last_directory", settings.last_directory);

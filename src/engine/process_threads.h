@@ -21,7 +21,6 @@ class ProcessThreadSampler
     // test override, default uses CPUID
     explicit ProcessThreadSampler(bool force_variable_counter = false);
     platform::Result<std::vector<OtherThreadSnapshot>> Sample(std::span<const uint32_t> exclude);
-    // reuses the coordinator system query, sample_qpc is query completion time
     std::vector<OtherThreadSnapshot> SampleFromSystemThreads(std::span<const uint32_t> exclude, std::span<const platform::SystemThread> threads, int64_t sample_qpc);
     size_t cached_handle_count() const;
     // QPC ticks spent in the last system query only

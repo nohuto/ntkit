@@ -19,7 +19,6 @@ namespace thread_sim::engine
 
 using platform::ProcessorNumber;
 
-inline constexpr uint32_t kConfigFormatVersion = 4;
 inline constexpr size_t kMaxThreads = 256;
 inline constexpr size_t kMaxNameLength = 64;
 inline constexpr uint32_t kMinRunDurationS = 1;
@@ -116,7 +115,6 @@ struct RunConfig
     bool operator==(const RunConfig&) const = default;
 };
 
-// persistence keys are stable format identifiers, not display labels
 const wchar_t* RelativeThreadPriorityKey(RelativeThreadPriority value);
 const wchar_t* AffinityModeKey(AffinityMode value);
 const wchar_t* WaitableTimerKindLabel(WaitableTimerKind value);

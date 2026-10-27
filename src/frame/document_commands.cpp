@@ -98,7 +98,6 @@ bool MainWindow::ConfirmDiscard()
 
 void MainWindow::RequestClose()
 {
-    // defer close requests until modal UI ends, nested modal loops must not use destroyed windows
     if (win32ui::ModalDepth() > 0)
     {
         win32ui::CancelOpenDialogs();
@@ -241,7 +240,6 @@ void MainWindow::ExportResults()
     {
         base.resize(base.size() - 4);
     }
-    // save dialog confirmed only the chosen file, export also writes adjacent metadata
     std::wstring existing;
     int existing_count = 0;
     for (const std::wstring& path : {base + L".csv", base + L".json"})

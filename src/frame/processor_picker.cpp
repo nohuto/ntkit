@@ -237,8 +237,6 @@ class PickerDialog final : public win32ui::DialogWindow
         }
         if (header->code == LVN_ITEMCHANGED && !updating_)
         {
-            // check box uses the state image, single processor mode follows selection
-            // focus and selection changes dont toggle check box lists
             const auto* change = reinterpret_cast<const NMLISTVIEW*>(header);
             const UINT relevant = mode_ == PickerMode::kSingleProcessor ? LVIS_SELECTED : mode_ == PickerMode::kBrowse ? 0
                                                                                                                        : LVIS_STATEIMAGEMASK;
@@ -383,9 +381,13 @@ class PickerDialog final : public win32ui::DialogWindow
                 }
             }
         }
-        for (int column = 0; column < Header_GetItemCount(ListView_GetHeader(list_)); ++column)
+        const std::vector<win32ui::ListColumn> columns = win32ui::ListColumns(list_);
+        for (size_t column = 0; column < columns.size(); ++column)
         {
-            win32ui::FitListColumn(list_, column);
+            if (columns[column].visible)
+            {
+                win32ui::FitListColumn(list_, static_cast<int>(column));
+            }
         }
         updating_ = false;
         Collect();
@@ -488,7 +490,6 @@ void SetDevProcessorGroups(uint16_t count)
 std::optional<PickerSelection> ShowProcessorPicker(HWND owner, const PickerOptions& options, const platform::Topology& topology, const PickerSelection& initial)
 {
 #if defined(THREAD_SIM_DEV)
-    // synthetic groups are picker only, validation and saved config use actual topology
     platform::Topology shown = topology;
     for (uint16_t group = static_cast<uint16_t>(topology.groups.size()); group < g_dev_groups && !topology.groups.empty(); ++group)
     {

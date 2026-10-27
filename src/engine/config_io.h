@@ -17,10 +17,9 @@
 namespace thread_sim::engine
 {
 
-// processor and CPU Set identities require matching topology
 struct TopologyFingerprint
 {
-    std::vector<uint64_t> group_masks; // active processor mask per group, in group order
+    std::vector<uint64_t> group_masks; // active processor mask per group
     uint32_t cpu_set_count = 0;
     uint64_t cpu_set_hash = 0; // FNV-1a over each CPU Set (id, group, logical processor)
 

@@ -71,12 +71,12 @@ struct AppliedSettings
 {
     std::optional<platform::Error> readback_error;
     SettingOutcome relative_priority;
-    std::optional<int32_t> relative_priority_readback; // GetThreadPriority, the relative THREAD_PRIORITY_* value
+    std::optional<int32_t> relative_priority_readback; // GetThreadPriority, relative THREAD_PRIORITY_* value
     SettingOutcome priority_boost;
     std::optional<bool> priority_boost_disabled_readback; // GetThreadPriorityBoost, TRUE when boosts are disabled
     SettingOutcome group_affinity;
     SettingOutcome selected_cpu_sets;
-    std::optional<platform::GroupAffinity> group_affinity_readback; // GetThreadGroupAffinity: primary group only
+    std::optional<platform::GroupAffinity> group_affinity_readback; // GetThreadGroupAffinity
     std::optional<std::vector<uint32_t>> selected_cpu_set_ids_readback;
     SettingOutcome ideal_processor;
     std::optional<ProcessorNumber> ideal_processor_readback;
@@ -84,7 +84,6 @@ struct AppliedSettings
     std::optional<WaitableTimerKind> obtained_waitable_timer_kind;
 };
 
-// count/max cover the run, percentiles are lower bounds from the full run histogram
 struct LatencySummary
 {
     uint64_t count = 0;
@@ -111,11 +110,11 @@ struct ThreadSnapshot
     std::optional<double> cpu_percent_one_logical_processor;
     std::optional<uint64_t> user_time_100ns;
     std::optional<uint64_t> kernel_time_100ns;
-    std::optional<uint64_t> cycles_total; // QueryThreadCycleTime raw counter, not time
+    std::optional<uint64_t> cycles_total; // QueryThreadCycleTime raw counter
     std::optional<uint64_t> cycles_delta;
     std::optional<uint64_t> work_batches;   // unavailable until the thread reports
     std::optional<uint32_t> missed_periods; // activities below 100 percent only
-    std::optional<uint32_t> overruns;       // activities below 100 percent only
+    std::optional<uint32_t> overruns;       // ^
     std::optional<LatencySummary> wake_lateness;
     std::optional<LatencySummary> mutex_wait;
     std::optional<RunningPriority> running_priority;
@@ -163,14 +162,13 @@ struct RunSnapshot
     int64_t qpc_frequency = 0;
     // QueryThreadCycleTime units per second, measured against QPC during the run
     std::optional<double> cycle_counter_hz;
-    int64_t origin_qpc = 0; // run origin at the start gate, 0 until established
-    int64_t end_qpc = 0;    // set on the final snapshot
+    int64_t origin_qpc = 0;
+    int64_t end_qpc = 0;
     std::optional<platform::Error> failure;
     std::vector<ThreadSnapshot> threads;
     std::vector<OtherThreadSnapshot> other_threads;
     std::vector<std::wstring> notices;
     std::optional<ProcessSnapshot> process;
-    // captured once at Start and shared by every snapshot of the run
     std::shared_ptr<const platform::Topology> topology;
     std::shared_ptr<const platform::Environment> environment;
 };
@@ -188,7 +186,7 @@ const wchar_t* WaitReasonName(uint32_t reason, uint32_t build);
 std::wstring DescribeThreadState(const ThreadSample& sample, uint32_t build);
 // "Below normal (-1)", unnamed THREAD_PRIORITY_* values show only their number
 std::wstring DescribeRelativePriority(int32_t value);
-// thread cycles converted using the run counter rate, empty if either is missing
+// thread cycles converted using the run counter rate
 std::optional<double> CpuSecondsFromCycles(const RunSnapshot& run, const ThreadSnapshot& thread);
 
 } // namespace thread_sim::engine

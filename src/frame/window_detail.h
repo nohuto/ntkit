@@ -20,13 +20,10 @@ inline constexpr UINT_PTR kReapTimer = 1;
 inline constexpr UINT_PTR kCloseRetryTimer = 3;
 inline constexpr UINT_PTR kPollTimer = 4;
 inline constexpr UINT_PTR kApplyTimer = 5;
-// sample other threads between runs at update speed, no more than once per second
 inline constexpr UINT_PTR kOtherThreadsTimer = 6;
 inline constexpr uint32_t kIdleOtherThreadsMs = 1000;
-// combine state changes between refreshes at engine::kMinSampleIntervalMs
 inline constexpr double kMinSnapshotApplyMs = 100.0;
 inline constexpr UINT kRunFailedMessage = WM_APP + 3;
-// combine list state changes into one selection update
 inline constexpr UINT kSelectionMessage = WM_APP + 4;
 
 struct ToolButton

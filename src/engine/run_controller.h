@@ -92,17 +92,14 @@ class RunContext
     {
         return plan_;
     }
-    // manual reset, signaled on stop all, include in every wait
     HANDLE stop_event() const noexcept
     {
         return stop_event_.get();
     }
-    // auto reset, only coordinator waits for requests and refresh
     HANDLE request_event() const noexcept
     {
         return request_event_.get();
     }
-    // auto reset, wakes one thread for requests
     HANDLE thread_event(size_t thread) const noexcept;
     bool stop_requested() const noexcept
     {
@@ -174,8 +171,6 @@ class RunController
     RunController(const RunController&) = delete;
     RunController& operator=(const RunController&) = delete;
 
-    // fails until the previous run is reaped
-    // records the caller environment capture at Start
     platform::Status Start(const RunConfig& config, const platform::Topology& topology, platform::Environment environment = {});
     void RequestSuspend(std::span<const uint32_t> threads);
     void RequestResume(std::span<const uint32_t> threads);

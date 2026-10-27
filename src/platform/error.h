@@ -30,14 +30,13 @@ enum class ErrorDomain : uint8_t
     kInternal,
 };
 
-// capture codes at the failing call before another call changes GetLastError
 struct Error
 {
     ErrorDomain domain = ErrorDomain::kNone;
     int64_t code = 0;
-    std::wstring operation; // operation, such as L"SetThreadGroupAffinity"
-    std::wstring context;   // identity, such as L"thread 3 (TID 1234)"
-    std::wstring detail;    // explanation
+    std::wstring operation;
+    std::wstring context;
+    std::wstring detail;
 
     std::wstring Describe() const;
     std::wstring CodeText() const;

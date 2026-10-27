@@ -41,7 +41,6 @@ using namespace window_detail;
 namespace
 {
 
-// integer atom avoids another atom reference on each SetProp with a string name
 const LPCWSTR kLastFocusProp = MAKEINTATOM(GlobalAddAtomW(L"thread-sim.LastFocus"));
 
 } // namespace
@@ -120,6 +119,10 @@ MainWindow::MainWindow(const AppOptions& options, ApplicationEnvironment environ
         {
             settings_ = loaded.value();
         }
+        else
+        {
+            settings_problem_ = std::move(loaded).error();
+        }
     }
     if (!options_.dev_perf_log.empty())
     {
@@ -181,6 +184,12 @@ bool MainWindow::Create(int show_command)
         ShowAllThreads(true);
     }
     SetFocus(table_.hwnd());
+    if (settings_problem_)
+    {
+        const platform::Error problem = std::move(*settings_problem_);
+        settings_problem_.reset();
+        ShowError(hwnd_, L"Read settings", L"The settings file could not be read, the default settings are used.", problem);
+    }
     ShowThemePresetsProblem();
     return true;
 }
@@ -396,7 +405,7 @@ LRESULT MainWindow::Handle(UINT message, WPARAM wparam, LPARAM lparam)
                 // PreTranslate takes check box clicks before the list, other threads are read only
                 if (reinterpret_cast<NMITEMACTIVATE*>(lparam)->iItem >= 0 && table_.FocusedThread() >= 0)
                 {
-                    OnCommand(cmd::kThreadActivityCustom);
+                    OnCommand(cmd::kThreadDetails);
                 }
                 return 0;
             }
@@ -406,7 +415,6 @@ LRESULT MainWindow::Handle(UINT message, WPARAM wparam, LPARAM lparam)
                 const bool allowed = thread >= 0 && ThreadSettingEditable();
                 if (allowed)
                 {
-                    // virtual list has no item text, supply the name for editing
                     if (HWND edit = ListView_GetEditControl(table_.hwnd()))
                     {
                         SetWindowTextW(edit, config_.threads[static_cast<size_t>(thread)].name.c_str());
@@ -817,7 +825,7 @@ void MainWindow::UpdateStatus()
                 process_cpu = L", CPU " + platform::FormatFixed(*snapshot_->process->cpu_percent_one_logical_processor, 1) + L" %";
             }
         }
-        // setup failure never reaches the start gate, so no duration is available
+        // setup failure never reaches the start, so no duration is available
         else if (engine::IsTerminal(snapshot_->state) && snapshot_->origin_qpc != 0 && snapshot_->elapsed_us > 0)
         {
             state += L" after " + elapsed + L" s";
@@ -1049,7 +1057,7 @@ bool MainWindow::PreTranslate(MSG* message)
         }
         return false;
     }
-    // virtual lists store no check state, toggle here before native selection and second click rename
+
     if ((message->message == WM_LBUTTONDOWN || message->message == WM_LBUTTONDBLCLK) && message->hwnd == table_.hwnd())
     {
         const int thread = table_.CheckBoxAt({GET_X_LPARAM(message->lParam), GET_Y_LPARAM(message->lParam)});
@@ -1060,7 +1068,7 @@ bool MainWindow::PreTranslate(MSG* message)
             return true;
         }
     }
-    // plain Space toggles selected threads, during text search it extends the name
+
     if (message->message == WM_KEYDOWN && message->wParam == VK_SPACE && message->hwnd == table_.hwnd() && !(GetKeyState(VK_CONTROL) & 0x8000) &&
         !(GetKeyState(VK_SHIFT) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000) && !win32ui::ListTypeSearchActive(table_.hwnd()))
     {
@@ -1071,7 +1079,7 @@ bool MainWindow::PreTranslate(MSG* message)
     {
         return true;
     }
-    // F6/Shift+F6 move between toolbar and table, arrows move between buttons
+
     if (message->message == WM_KEYDOWN && message->wParam == VK_F6 && !(GetKeyState(VK_CONTROL) & 0x8000) && !(GetKeyState(VK_MENU) & 0x8000))
     {
         SetFocus(GetFocus() == toolbar_ || !IsWindowVisible(toolbar_) ? table_.hwnd() : toolbar_);
@@ -1079,7 +1087,6 @@ bool MainWindow::PreTranslate(MSG* message)
     }
     if (message->message == WM_KEYDOWN && message->wParam == VK_TAB)
     {
-        // route only Tab so menus and access keys stay native
         if (IsDialogMessageW(hwnd_, message))
         {
             return true;
@@ -1982,12 +1989,10 @@ void MainWindow::SaveSettings()
     }
     if (win32ui::DpiOverride())
     {
-        // synthetic sizes are not saved, keep layout values in real DPI units
         (void)SaveUiSettings(environment_.settings_path, settings_);
         return;
     }
     settings_.column_widths_dip = table_.ColumnWidthsDip(dpi_);
-    // settings write failures must not block closing
     (void)SaveUiSettings(environment_.settings_path, settings_);
 }
 

@@ -52,7 +52,6 @@ void ShowError(HWND owner, std::wstring_view title, std::wstring_view summary, c
     spec.buttons = {{IDOK, L"OK"}};
     spec.default_id = IDOK;
     spec.cancel_id = IDOK;
-    // qualify to avoid finding win32ui::ShowMessage through argument dependent lookup
     ui::ShowMessage(owner, std::move(spec));
 }
 

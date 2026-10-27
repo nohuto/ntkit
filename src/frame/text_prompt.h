@@ -11,7 +11,6 @@
 namespace thread_sim::frame
 {
 
-// text is initial value and output, false on cancel
 bool PromptText(HWND owner, std::wstring_view title, std::wstring_view label, std::wstring* text);
 
 } // namespace thread_sim::frame

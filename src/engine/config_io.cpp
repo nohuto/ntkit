@@ -86,7 +86,7 @@ std::span<const std::wstring_view> RequiredKeys(std::wstring_view path)
 {
     if (path == L"document")
     {
-        static constexpr std::wstring_view keys[] = {L"format", L"version", L"name", L"duration_s", L"sample_interval_ms", L"threads"};
+        static constexpr std::wstring_view keys[] = {L"format", L"name", L"duration_s", L"sample_interval_ms", L"threads"};
         return keys;
     }
     if (path == L"processor")
@@ -127,31 +127,8 @@ class ConfigParser
 
     bool Parse(LoadedConfig* loaded)
     {
-        // read version first, JSON keys can appear in any order
-        win32ui::JsonReader header = reader_;
-        if (!header.Object([&](const std::wstring& key) {
-                if (key != L"version")
-                {
-                    return header.Skip();
-                }
-                uint64_t version = 0;
-                if (!header.Unsigned(&version))
-                {
-                    return false;
-                }
-                if (version != kConfigFormatVersion)
-                {
-                    return header.Fail(version >= 1 && version <= 3 ? L"This config was saved by an older version of ThreadSim." : L"Unsupported config version.");
-                }
-                return true;
-            }))
-        {
-            return false;
-        }
-
         loaded_ = loaded;
         bool format_seen = false;
-        bool version_seen = false;
         RunConfig& run = loaded->config;
         run = RunConfig{};
         const bool ok = Object(L"document", [&](const std::wstring& key, bool* handled) {
@@ -168,16 +145,6 @@ class ConfigParser
                     return reader_.Fail(L"This is not a ThreadSim run config.");
                 }
                 format_seen = true;
-                return true;
-            }
-            if (key == L"version")
-            {
-                uint64_t version = 0;
-                if (!reader_.Unsigned(&version))
-                {
-                    return false;
-                }
-                version_seen = true;
                 return true;
             }
             if (key == L"name")
@@ -231,9 +198,9 @@ class ConfigParser
         {
             return false;
         }
-        if (!format_seen || !version_seen)
+        if (!format_seen)
         {
-            return reader_.Fail(L"The config is missing its format or version.");
+            return reader_.Fail(L"The config is missing its format.");
         }
         return true;
     }
@@ -577,7 +544,6 @@ void WriteRunConfigObject(win32ui::JsonWriter& writer, std::wstring_view key, co
 {
     writer.BeginObject(key);
     writer.String(L"format", kFormatName);
-    writer.Unsigned(L"version", kConfigFormatVersion);
     writer.String(L"name", config.name);
     config.duration_s ? writer.Unsigned(L"duration_s", *config.duration_s) : writer.Null(L"duration_s");
     writer.Unsigned(L"sample_interval_ms", config.sample_interval_ms);

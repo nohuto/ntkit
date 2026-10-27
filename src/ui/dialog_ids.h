@@ -1,9 +1,6 @@
 // Copyright (C) 2026 nohuto
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// message/About control IDs also serve as UI Automation AutomationIds
-// GUI tests read them here, values match library message_dialog.h
-
 #pragma once
 
 namespace thread_sim::ui::ids

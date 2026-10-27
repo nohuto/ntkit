@@ -94,7 +94,6 @@ std::vector<int> SelectedRows(HWND list)
 
 int CompareCellText(const std::wstring& left, const std::wstring& right)
 {
-    // leading number in cells such as "12.5 ms" or "47.7"
     const auto parse = [](const std::wstring& text, double* value) {
         size_t start = 0;
         while (start < text.size() && text[start] == L' ')

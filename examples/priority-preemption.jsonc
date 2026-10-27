@@ -5,7 +5,6 @@
 
 {
   "format": "thread-sim.run-config",
-  "version": 4,
   "name": "Priority preemption",
   "duration_s": 10,
   "sample_interval_ms": 500,
