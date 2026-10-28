@@ -14,7 +14,7 @@ endif()
 include(FetchContent)
 FetchContent_Declare(win32ui
     GIT_REPOSITORY https://github.com/nohuto/win32-ui.git
-    GIT_TAG 788b364f05b01be01efc448b998d5a7051709b8f
+    GIT_TAG c0fafd4c4bb241f5c638cedd99a6d731a617d0c7
     EXCLUDE_FROM_ALL
 )
 FetchContent_MakeAvailable(win32ui)
