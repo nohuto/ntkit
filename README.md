@@ -41,7 +41,7 @@ Tool for experimenting with thread scheduling, inspired by [CPUStress](https://g
 
 ### Quantum Expiration
 
-See '[Priority Separation, Quantum](https://noverse.dev/docs/win-config/system/priority-separation/#quantum)' / '[Context Switching, WrQuantumEnd](https://noverse.dev/docs/windbg-notes/threads/thread-scheduling/context-switching/#wrquantumend)' for details/notes on the captures.
+See '[Priority Separation, Duration Captures](https://noverse.dev/docs/win-config/system/priority-separation/#duration-captures)' / '[Context Switching, WrQuantumEnd](https://noverse.dev/docs/windbg-notes/threads/thread-scheduling/context-switching/#wrquantumend)' for details/notes on the captures.
 
 ![](https://github.com/nohuto/thread-sim/blob/main/assets/images/quantum-expiration/quantum-expiration-cs.png?raw=true)
 ![](https://github.com/nohuto/thread-sim/blob/main/assets/images/quantum-expiration/quantum-expiration-core.png?raw=true)
