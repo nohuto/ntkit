@@ -15,18 +15,14 @@ Tool for experimenting with thread scheduling, inspired by [CPUStress](https://g
 - Thread state & wait reason, base & current priority, running priority distribution, context switches, CPU % and CPU time (`QueryThreadCycleTime`)
 - Some presets for specific scenarios in `assets\examples\`, see comments in each file for some additional notes:
 
-### Quantum Expiration
-
-See '[Priority Separation, Quantum](https://noverse.dev/docs/win-config/system/priority-separation/#quantum)' / '[Context Switching, WrQuantumEnd](https://noverse.dev/docs/windbg-notes/threads/thread-scheduling/context-switching/#wrquantumend)' for details/notes on the captures.
-
-![](https://github.com/nohuto/thread-sim/blob/main/assets/images/quantum-expiration/quantum-expiration-cs.png?raw=true)
-![](https://github.com/nohuto/thread-sim/blob/main/assets/images/quantum-expiration/quantum-expiration-core.png?raw=true)
-![](https://github.com/nohuto/thread-sim/blob/main/assets/images/quantum-expiration/quantum-expiration-time.png?raw=true)
-
 ### CPU Starvation
 
 ![](https://github.com/nohuto/thread-sim/blob/main/assets/images/cpu-starvation/cpu-starvation.png?raw=true)
 ![](https://github.com/nohuto/thread-sim/blob/main/assets/images/cpu-starvation/cpu-starvation-cs.png?raw=true)
+
+### Priority Inversion
+
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/priority-inversion/prio-inversion.png?raw=true)
 
 ### Priority Preemption
 
@@ -43,9 +39,13 @@ See '[Priority Separation, Quantum](https://noverse.dev/docs/win-config/system/p
 ![](https://github.com/nohuto/thread-sim/blob/main/assets/images/priority-decay/prio-decay.png?raw=true)
 ![](https://github.com/nohuto/thread-sim/blob/main/assets/images/priority-decay/prio-decay-time.png?raw=true)
 
-### Priority Inversion
+### Quantum Expiration
 
-![](https://github.com/nohuto/thread-sim/blob/main/assets/images/priority-inversion/prio-inversion.png?raw=true)
+See '[Priority Separation, Quantum](https://noverse.dev/docs/win-config/system/priority-separation/#quantum)' / '[Context Switching, WrQuantumEnd](https://noverse.dev/docs/windbg-notes/threads/thread-scheduling/context-switching/#wrquantumend)' for details/notes on the captures.
+
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/quantum-expiration/quantum-expiration-cs.png?raw=true)
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/quantum-expiration/quantum-expiration-core.png?raw=true)
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/quantum-expiration/quantum-expiration-time.png?raw=true)
 
 ## Verify Binaries
 
