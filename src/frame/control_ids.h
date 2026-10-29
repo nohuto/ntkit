@@ -23,6 +23,9 @@ inline constexpr int kActivityWorkEdit = 2301;
 inline constexpr int kActivityPeriodEdit = 2302;
 inline constexpr int kActivityTimerCombo = 2303;
 
+inline constexpr int kActivityDelayEdit = 2306;
+inline constexpr int kActivityWakeCombo = 2307;
+
 inline constexpr int kRunValueEdit = 2401;
 inline constexpr int kTextPromptEdit = 2421;
 
@@ -54,8 +57,8 @@ inline constexpr int kThreadBoost = 40207;
 inline constexpr int kThreadAffinity = 40208;
 inline constexpr int kThreadCpuSets = 40209;
 inline constexpr int kThreadIdeal = 40210;
-inline constexpr int kThreadPriorityFirst = 40211; // + index into engine::kAllPriorities
-inline constexpr int kThreadPriorityLast = 40215;
+inline constexpr int kThreadPriorityFirst = 40231; // + index into engine::kAllRelativeThreadPriorities
+inline constexpr int kThreadPriorityLast = 40237;
 inline constexpr int kThreadActive = 40216;
 inline constexpr int kThreadActivityFirst = 40217; // + engine::ActivityLevel, Low to Maximum
 inline constexpr int kThreadActivityLast = 40220;

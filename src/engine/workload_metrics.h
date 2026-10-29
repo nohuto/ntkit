@@ -52,7 +52,7 @@ class PeriodSchedule
     uint64_t work_us_;
 };
 
-inline constexpr uint32_t kWorkloadBatchIterations = 20000;
+inline constexpr uint32_t kWorkloadBatchIterations = 512;
 uint64_t WorkloadBatch(uint64_t state) noexcept;
 
 } // namespace thread_sim::engine

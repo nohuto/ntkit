@@ -138,6 +138,9 @@ class MainWindow final : public engine::NotificationSink
     void RenameThread(int thread, std::wstring name);
     bool ThreadSettingEditable() const;
     bool ThreadSettingEditable(const std::vector<uint32_t>& selected) const;
+    bool ThreadPolicyEditable(const std::vector<uint32_t>& selected) const;
+    bool RunLive() const;
+    void ApplyLivePolicy(const std::vector<uint32_t>& threads);
     void FocusFirstIssue();
     HMENU BuildPriorityMenu(const std::vector<uint32_t>& selected) const;
     HMENU BuildActivityMenu(const std::vector<uint32_t>& selected) const;

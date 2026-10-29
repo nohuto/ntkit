@@ -65,6 +65,8 @@ constexpr const wchar_t* kColumns[] = {
     L"requested_work_percent",
     L"requested_period_ms",
     L"requested_waitable_timer_kind",
+    L"requested_start_delay_ms",
+    L"requested_wake_source",
     L"obtained_waitable_timer_kind",
     L"cpu_user_100ns",
     L"cpu_kernel_100ns",
@@ -93,6 +95,7 @@ constexpr const wchar_t* kColumns[] = {
     L"readback_error",
     L"warning",
     L"error",
+    L"live_change_count",
 };
 
 struct PrioritySummary
@@ -175,6 +178,29 @@ void WriteOptional(win32ui::JsonWriter& writer, std::wstring_view key, const std
 void WriteOptional(win32ui::JsonWriter& writer, std::wstring_view key, const std::optional<uint64_t>& value)
 {
     value ? writer.Unsigned(key, *value) : writer.Null(key);
+}
+
+void WriteOptional(win32ui::JsonWriter& writer, std::wstring_view key, const std::optional<int64_t>& value)
+{
+    value ? writer.Signed(key, *value) : writer.Null(key);
+}
+
+void AppendLatency(std::vector<std::wstring>& row, const std::optional<LatencySummary>& latency)
+{
+    row.push_back(latency ? FormatUnsigned(latency->count) : L"");
+    const bool measured = latency && latency->count > 0;
+    row.push_back(measured ? std::to_wstring(latency->p50_us) : L"");
+    row.push_back(measured ? std::to_wstring(latency->p99_us) : L"");
+    row.push_back(measured ? std::to_wstring(latency->max_us) : L"");
+}
+
+void WriteLatency(win32ui::JsonWriter& writer, const std::wstring& prefix, const std::optional<LatencySummary>& latency)
+{
+    latency ? writer.Unsigned(prefix + L"_count", latency->count) : writer.Null(prefix + L"_count");
+    const bool measured = latency && latency->count > 0;
+    measured ? writer.Signed(prefix + L"_p50_us", latency->p50_us) : writer.Null(prefix + L"_p50_us");
+    measured ? writer.Signed(prefix + L"_p99_us", latency->p99_us) : writer.Null(prefix + L"_p99_us");
+    measured ? writer.Signed(prefix + L"_max_us", latency->max_us) : writer.Null(prefix + L"_max_us");
 }
 
 const wchar_t* StateKey(RunState state)
@@ -268,7 +294,7 @@ std::wstring BuildThreadResultsCsv(const ExportInput& input)
         const ThreadConfig& thread = config.threads[index];
         const ThreadSnapshot* observed = thread.active && index < snapshot.threads.size() && snapshot.threads[index].active ? &snapshot.threads[index] : nullptr;
         const ThreadAffinityConfig& affinity_config = thread.affinity;
-        const ActivityRelevance relevance = RelevanceOf(thread.activity);
+        const ActivityRelevance relevance = RelevanceOf(thread.activity, thread.uses_shared_mutex);
         std::vector<std::wstring> row;
         row.push_back(snapshot.run_id);
         row.push_back(Number(snapshot.requested_duration_s));
@@ -319,6 +345,8 @@ std::wstring BuildThreadResultsCsv(const ExportInput& input)
         row.push_back(FormatUnsigned(thread.activity.work_percent));
         row.push_back(relevance.period ? FormatUnsigned(thread.activity.period_ms) : L"");
         row.push_back(relevance.waitable_timer_kind ? WaitableTimerKindKey(thread.activity.waitable_timer_kind) : L"");
+        row.push_back(FormatUnsigned(thread.activity.start_delay_ms));
+        row.push_back(relevance.wake_source ? WakeSourceKey(thread.activity.wake_source) : L"");
         row.push_back(applied && applied->obtained_waitable_timer_kind ? WaitableTimerKindKey(*applied->obtained_waitable_timer_kind) : L"");
         row.push_back(observed ? Number(observed->user_time_100ns) : L"");
         row.push_back(observed ? Number(observed->kernel_time_100ns) : L"");
@@ -332,15 +360,9 @@ std::wstring BuildThreadResultsCsv(const ExportInput& input)
         row.push_back(observed ? Number(observed->work_batches) : L"");
         row.push_back(observed ? Number(observed->missed_periods) : L"");
         row.push_back(observed ? Number(observed->overruns) : L"");
-        row.push_back(observed && observed->wake_lateness ? FormatUnsigned(observed->wake_lateness->count) : L"");
-        row.push_back(observed && observed->wake_lateness ? std::to_wstring(observed->wake_lateness->p50_us) : L"");
-        row.push_back(observed && observed->wake_lateness ? std::to_wstring(observed->wake_lateness->p99_us) : L"");
-        row.push_back(observed && observed->wake_lateness ? std::to_wstring(observed->wake_lateness->max_us) : L"");
+        AppendLatency(row, observed ? observed->wake_lateness : std::nullopt);
         row.push_back(thread.uses_shared_mutex ? L"true" : L"false");
-        row.push_back(observed && observed->mutex_wait ? FormatUnsigned(observed->mutex_wait->count) : L"");
-        row.push_back(observed && observed->mutex_wait ? std::to_wstring(observed->mutex_wait->p50_us) : L"");
-        row.push_back(observed && observed->mutex_wait ? std::to_wstring(observed->mutex_wait->p99_us) : L"");
-        row.push_back(observed && observed->mutex_wait ? std::to_wstring(observed->mutex_wait->max_us) : L"");
+        AppendLatency(row, observed ? observed->mutex_wait : std::nullopt);
         const auto priority = SummarizePriority(observed ? observed->running_priority : std::nullopt);
         row.push_back(Number(priority.reads));
         row.push_back(Number(priority.min));
@@ -349,6 +371,7 @@ std::wstring BuildThreadResultsCsv(const ExportInput& input)
         row.push_back(applied && applied->readback_error ? applied->readback_error->Describe() : L"");
         row.push_back(observed && observed->warning ? *observed->warning : L"");
         row.push_back(observed && observed->error ? observed->error->Describe() : L"");
+        row.push_back(observed ? FormatUnsigned(observed->live_change_count) : L"");
         for (size_t column = 0; column < row.size(); ++column)
         {
             csv += (column ? L"," : L"") + CsvQuote(row[column]);
@@ -364,6 +387,22 @@ std::wstring BuildRunMetadataJson(const ExportInput& input)
     writer.BeginObject();
     writer.String(L"format", L"thread-sim.run-metadata");
     writer.String(L"app_version", input.app_version);
+    writer.BeginArray(L"live_changes");
+    if (input.snapshot)
+    {
+        for (const auto& change : input.snapshot->live_changes)
+        {
+            writer.BeginObject();
+            writer.Number(L"elapsed_s", static_cast<double>(change.elapsed_us) / 1e6, 6);
+            WriteOptional(writer, L"thread_index", change.thread_index);
+            writer.String(L"setting", change.setting);
+            writer.String(L"value", change.value);
+            writer.Bool(L"succeeded", change.succeeded);
+            WriteError(writer, L"error", change.error);
+            writer.EndObject();
+        }
+    }
+    writer.EndArray();
     if (input.snapshot)
     {
         const RunSnapshot& snapshot = *input.snapshot;
@@ -376,6 +415,7 @@ std::wstring BuildRunMetadataJson(const ExportInput& input)
         writer.Number(L"elapsed_s", static_cast<double>(snapshot.elapsed_us) / 1e6, 6);
         WriteOptional(writer, L"requested_duration_s", snapshot.requested_duration_s);
         writer.Unsigned(L"requested_sample_interval_ms", snapshot.sample_interval_ms);
+        WriteOptional(writer, L"last_sample_interval_us", snapshot.last_sample_interval_us);
         writer.Signed(L"qpc_frequency_hz", snapshot.qpc_frequency);
         if (snapshot.cycle_counter_hz)
         {
@@ -391,6 +431,7 @@ std::wstring BuildRunMetadataJson(const ExportInput& input)
             writer.BeginObject();
             writer.Unsigned(L"thread_index", thread.index);
             writer.Bool(L"active", thread.active);
+            writer.Unsigned(L"live_change_count", thread.live_change_count);
             thread.thread_id ? writer.Unsigned(L"thread_id", thread.thread_id) : writer.Null(L"thread_id");
             writer.String(L"final_thread_state", ThreadRunStateKey(thread.state));
             if (thread.sample)
@@ -440,8 +481,13 @@ std::wstring BuildRunMetadataJson(const ExportInput& input)
             writer.EndObject();
             WriteOptional(writer, L"cpu_user_100ns", thread.user_time_100ns);
             WriteOptional(writer, L"cpu_kernel_100ns", thread.kernel_time_100ns);
+            thread.cpu_percent_one_logical_processor ? writer.Number(L"cpu_percent_one_logical_processor_last_interval", *thread.cpu_percent_one_logical_processor, 2) : writer.Null(L"cpu_percent_one_logical_processor_last_interval");
             WriteOptional(writer, L"cycles_total", thread.cycles_total);
+            WriteOptional(writer, L"cycles_delta", thread.cycles_delta);
             WriteOptional(writer, L"work_batches", thread.work_batches);
+            WriteOptional(writer, L"missed_periods", thread.missed_periods);
+            WriteOptional(writer, L"overruns", thread.overruns);
+            WriteLatency(writer, L"wake_lateness", thread.wake_lateness);
             if (input.config && thread.index < input.config->threads.size())
             {
                 writer.Bool(L"requested_shared_mutex", input.config->threads[thread.index].uses_shared_mutex);
@@ -450,20 +496,7 @@ std::wstring BuildRunMetadataJson(const ExportInput& input)
             {
                 writer.Null(L"requested_shared_mutex");
             }
-            if (thread.mutex_wait)
-            {
-                writer.Unsigned(L"mutex_wait_count", thread.mutex_wait->count);
-                writer.Signed(L"mutex_wait_p50_us", thread.mutex_wait->p50_us);
-                writer.Signed(L"mutex_wait_p99_us", thread.mutex_wait->p99_us);
-                writer.Signed(L"mutex_wait_max_us", thread.mutex_wait->max_us);
-            }
-            else
-            {
-                for (const auto* key : {L"mutex_wait_count", L"mutex_wait_p50_us", L"mutex_wait_p99_us", L"mutex_wait_max_us"})
-                {
-                    writer.Null(key);
-                }
-            }
+            WriteLatency(writer, L"mutex_wait", thread.mutex_wait);
             const auto priority = SummarizePriority(thread.running_priority);
             WriteOptional(writer, L"running_priority_reads", priority.reads);
             WriteOptional(writer, L"running_priority_min", priority.min);
@@ -477,6 +510,7 @@ std::wstring BuildRunMetadataJson(const ExportInput& input)
             WriteOutcome(writer, L"ideal_processor", thread.applied.ideal_processor);
             WriteOutcome(writer, L"waitable_timer", thread.applied.waitable_timer);
             writer.EndObject();
+            thread.applied.obtained_waitable_timer_kind ? writer.String(L"obtained_waitable_timer_kind", WaitableTimerKindKey(*thread.applied.obtained_waitable_timer_kind)) : writer.Null(L"obtained_waitable_timer_kind");
             WriteError(writer, L"readback_error", thread.applied.readback_error);
             thread.warning ? writer.String(L"warning", *thread.warning) : writer.Null(L"warning");
             WriteError(writer, L"error", thread.error);

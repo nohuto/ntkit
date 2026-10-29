@@ -120,6 +120,7 @@ struct ThreadSnapshot
     std::optional<RunningPriority> running_priority;
     std::optional<platform::Error> error;
     std::optional<std::wstring> warning;
+    uint32_t live_change_count = 0;
 };
 
 struct ProcessSnapshot
@@ -146,6 +147,16 @@ struct OtherThreadSnapshot
     std::optional<platform::Error> error;
 };
 
+struct LiveChange
+{
+    int64_t elapsed_us = 0;
+    std::optional<uint32_t> thread_index;
+    std::wstring setting;
+    std::wstring value;
+    bool succeeded = false;
+    std::optional<platform::Error> error;
+};
+
 struct RunSnapshot
 {
     uint64_t generation = 0;
@@ -167,6 +178,7 @@ struct RunSnapshot
     std::optional<platform::Error> failure;
     std::vector<ThreadSnapshot> threads;
     std::vector<OtherThreadSnapshot> other_threads;
+    std::vector<LiveChange> live_changes;
     std::vector<std::wstring> notices;
     std::optional<ProcessSnapshot> process;
     std::shared_ptr<const platform::Topology> topology;

@@ -188,8 +188,9 @@ void DetailsWindow::Show(const engine::ThreadConfig& requested, const engine::Ru
     rows.push_back({L"Affinity", affinity, Outcome(applied.group_affinity, group_affinity_readback), L""});
     rows.push_back({L"CPU Sets", affinity_config.mode == engine::AffinityMode::kCpuSets ? DescribeCpuSetIds(affinity_config.selected_cpu_set_ids) : L"", Outcome(applied.selected_cpu_sets, applied.selected_cpu_set_ids_readback ? (applied.selected_cpu_set_ids_readback->empty() ? std::wstring(L"none") : DescribeCpuSetIds(*applied.selected_cpu_set_ids_readback)) : L""), L""});
     rows.push_back({L"Ideal processor", affinity_config.ideal_processor_enabled ? platform::DescribeProcessor(affinity_config.ideal_processor) : L"", Outcome(applied.ideal_processor, applied.ideal_processor_readback ? platform::DescribeProcessor(*applied.ideal_processor_readback) : L""), L""});
-    const engine::ActivityRelevance relevance = engine::RelevanceOf(requested.activity);
-    rows.push_back({L"Activity", DescribeActivity(requested.activity), L"", L""});
+    const engine::ActivityRelevance relevance = engine::RelevanceOf(requested.activity, requested.uses_shared_mutex);
+    rows.push_back({L"Activity", DescribeActivity(requested.activity, requested.uses_shared_mutex), L"", L""});
+    rows.push_back({L"Wake by", relevance.wake_source ? engine::WakeSourceLabel(requested.activity.wake_source) : L"", L"", L""});
     rows.push_back({L"Timer", relevance.waitable_timer_kind ? engine::WaitableTimerKindLabel(requested.activity.waitable_timer_kind) : L"", Outcome(applied.waitable_timer, applied.obtained_waitable_timer_kind ? engine::WaitableTimerKindLabel(*applied.obtained_waitable_timer_kind) : L""), L""});
     if (observed)
     {
@@ -199,7 +200,9 @@ void DetailsWindow::Show(const engine::ThreadConfig& requested, const engine::Ru
         rows.push_back({L"CPU %", L"", L"", observed->cpu_percent_one_logical_processor ? platform::FormatFixed(*observed->cpu_percent_one_logical_processor, 1) + L" %" : std::wstring()});
         rows.push_back({L"Cycles", L"", L"", observed->cycles_total ? platform::FormatUnsigned(*observed->cycles_total) : std::wstring()});
         rows.push_back({L"Context switches", L"", L"", sample && sample->context_switches ? platform::FormatUnsigned(*sample->context_switches) : std::wstring()});
-        if (relevance.period)
+        rows.push_back({L"Live changes", L"", L"", observed->live_change_count ? std::to_wstring(observed->live_change_count) : std::wstring()});
+        // engine counts periods only for threads that rest between work windows
+        if (requested.activity.work_percent < 100)
         {
             rows.push_back({L"Missed periods", L"", L"", observed->missed_periods ? std::to_wstring(*observed->missed_periods) : std::wstring()});
             rows.push_back({L"Overruns", L"", L"", observed->overruns ? std::to_wstring(*observed->overruns) : std::wstring()});

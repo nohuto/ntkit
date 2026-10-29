@@ -124,6 +124,10 @@ int64_t RunContext::ElapsedSinceOriginUs(int64_t qpc) const noexcept
 
 void RunContext::Publish(RunSnapshot snapshot)
 {
+    {
+        std::lock_guard lock(policy_mutex_);
+        snapshot.live_changes = live_changes_;
+    }
     if (!snapshot.other_threads.empty() && !sample_other_threads())
     {
         snapshot.other_threads.clear();
@@ -141,6 +145,18 @@ void RunContext::Publish(RunSnapshot snapshot)
         }
         thread.index = static_cast<uint32_t>(index);
         thread.active = plan_.config.threads[index].active;
+        thread.live_change_count = 0;
+    }
+    for (const auto& change : snapshot.live_changes)
+    {
+        if (change.thread_index && *change.thread_index < snapshot.threads.size())
+        {
+            auto& count = snapshot.threads[*change.thread_index].live_change_count;
+            if (count < UINT32_MAX)
+            {
+                ++count;
+            }
+        }
     }
     snapshot.topology = plan_.topology;
     snapshot.environment = plan_.environment;
@@ -192,6 +208,42 @@ void RunContext::RequestThreads(std::span<const uint32_t> threads, ThreadRequest
     {
         SetEvent(request_event_.get());
     }
+}
+
+void RunContext::QueueThreadPolicy(ThreadPolicyRequest request)
+{
+    {
+        std::lock_guard lock(policy_mutex_);
+        if (live_changes_closed_)
+        {
+            return;
+        }
+        policy_requests_.push_back(std::move(request));
+    }
+    SetEvent(request_event_.get());
+}
+
+std::vector<ThreadPolicyRequest> RunContext::TakeThreadPolicies(bool close)
+{
+    std::vector<ThreadPolicyRequest> requests;
+    std::lock_guard lock(policy_mutex_);
+    live_changes_closed_ = live_changes_closed_ || close;
+    requests.swap(policy_requests_);
+    return requests;
+}
+
+void RunContext::RecordLiveChange(LiveChange change)
+{
+    {
+        std::lock_guard lock(policy_mutex_);
+        if (live_changes_closed_ && !change.thread_index)
+        {
+            return;
+        }
+        change.elapsed_us = run_origin() ? ElapsedSinceOriginUs(platform::QpcClock::Now()) : 0;
+        live_changes_.push_back(std::move(change));
+    }
+    SetEvent(request_event_.get());
 }
 
 namespace
@@ -400,6 +452,30 @@ void RunController::RequestStopAll()
     if (state_ && state_->context)
     {
         state_->context->RequestStopAll();
+    }
+}
+
+void RunController::ApplyThreadPolicy(uint32_t thread, const SchedulingConfig& scheduling, const ThreadAffinityConfig& affinity)
+{
+    if (state_ && state_->context)
+    {
+        state_->context->QueueThreadPolicy({thread, scheduling, affinity});
+    }
+}
+
+void RunController::RecordProcessChange(std::wstring setting, std::wstring value, const platform::Status& status)
+{
+    if (state_ && state_->context)
+    {
+        LiveChange change;
+        change.setting = std::move(setting);
+        change.value = std::move(value);
+        change.succeeded = status.ok();
+        if (!status)
+        {
+            change.error = status.error();
+        }
+        state_->context->RecordLiveChange(std::move(change));
     }
 }
 

@@ -42,6 +42,8 @@ enum class Field : uint16_t
     kPeriod,
     kWorkPercent,
     kWaitableTimerKind,
+    kStartDelay,
+    kWakeSource,
     kSharedMutex,
 };
 
@@ -69,7 +71,8 @@ struct ActivityRelevance
 {
     bool period = false;
     bool waitable_timer_kind = false;
+    bool wake_source = false;
 };
-ActivityRelevance RelevanceOf(const ActivityConfig& activity);
+ActivityRelevance RelevanceOf(const ActivityConfig& activity, bool uses_shared_mutex);
 
 } // namespace thread_sim::engine

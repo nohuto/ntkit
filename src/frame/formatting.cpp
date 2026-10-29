@@ -48,12 +48,20 @@ std::wstring ThreadStateText(const engine::ThreadSnapshot& thread, uint32_t wind
     }
 }
 
-std::wstring DescribeActivity(const engine::ActivityConfig& activity)
+std::wstring DescribeActivity(const engine::ActivityConfig& activity, bool uses_shared_mutex)
 {
     std::wstring text = engine::ActivityLevelLabel(engine::ActivityLevelOf(activity));
-    if (engine::RelevanceOf(activity).period)
+    if (engine::RelevanceOf(activity, uses_shared_mutex).period)
     {
         text += L", " + std::to_wstring(activity.work_percent) + L" % of " + std::to_wstring(activity.period_ms) + L" ms";
+    }
+    if (engine::RelevanceOf(activity, uses_shared_mutex).wake_source && activity.wake_source != engine::WakeSource::kTimer)
+    {
+        text += activity.wake_source == engine::WakeSource::kEvent ? L", event wake" : L", window message wake";
+    }
+    if (activity.start_delay_ms > 0)
+    {
+        text += L", starts after " + std::to_wstring(activity.start_delay_ms) + L" ms";
     }
     return text;
 }

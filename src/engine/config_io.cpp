@@ -38,6 +38,8 @@ void WriteActivity(JsonWriter& writer, const ActivityConfig& activity)
     writer.Unsigned(L"work_percent", activity.work_percent);
     writer.Unsigned(L"period_ms", activity.period_ms);
     writer.String(L"waitable_timer_kind", WaitableTimerKindKey(activity.waitable_timer_kind));
+    writer.Unsigned(L"start_delay_ms", activity.start_delay_ms);
+    writer.String(L"wake_source", WakeSourceKey(activity.wake_source));
     writer.EndObject();
 }
 void WriteThread(JsonWriter& writer, const ThreadConfig& thread)
@@ -336,6 +338,14 @@ class ConfigParser
             if (key == L"waitable_timer_kind")
             {
                 return Key(&out->waitable_timer_kind, &ParseWaitableTimerKindKey, L"waitable timer kind");
+            }
+            if (key == L"start_delay_ms")
+            {
+                return U32(&out->start_delay_ms);
+            }
+            if (key == L"wake_source")
+            {
+                return Key(&out->wake_source, &ParseWakeSourceKey, L"wake source");
             }
             *handled = false;
             return true;

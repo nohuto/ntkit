@@ -24,7 +24,8 @@ std::wstring PriorityClassName(DWORD priority_class);
 // uses app state before/after runs
 std::wstring ThreadStateText(const engine::ThreadSnapshot& thread, uint32_t windows_build);
 // activity level and waiting share
-std::wstring DescribeActivity(const engine::ActivityConfig& activity);
+// level, work and period when the period applies, the wake source other than a timer, then the start delay
+std::wstring DescribeActivity(const engine::ActivityConfig& activity, bool uses_shared_mutex);
 // largest whole unit
 std::wstring DescribeDuration(uint32_t seconds);
 inline std::wstring DescribeDuration(std::optional<uint32_t> seconds)

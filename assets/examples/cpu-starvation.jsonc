@@ -1,4 +1,4 @@
-// two 'Maximum' threads share logical CPU 1 for 30s
+// two 'Maximum' threads share logical CPU 1 for 30s, dynamic boosts disabled
 //
 // use 'Normal' process priority, 'Normal' then has base priority 8 and 'Lowest' has base priority 6
 // after startup neither worker waits, 'Lowest' stays ready for long intervals while 'Normal' runs
@@ -16,7 +16,7 @@
       "shared_mutex": false,
       "scheduling": {
         "relative_priority": "normal",
-        "priority_boost_enabled": true
+        "priority_boost_enabled": false
       },
       "affinity": {
         "mode": "group_affinity",
@@ -39,7 +39,7 @@
       "shared_mutex": false,
       "scheduling": {
         "relative_priority": "lowest",
-        "priority_boost_enabled": true
+        "priority_boost_enabled": false
       },
       "affinity": {
         "mode": "group_affinity",

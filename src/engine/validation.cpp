@@ -160,6 +160,14 @@ void ValidateActivity(size_t index, const ActivityConfig& activity, Collector& o
     {
         out.Thread(thread, Field::kWaitableTimerKind, L"Select a valid waitable timer kind.");
     }
+    if (activity.start_delay_ms > kMaxStartDelayMs)
+    {
+        out.Thread(thread, Field::kStartDelay, L"Start delay must be between 0 and " + std::to_wstring(kMaxStartDelayMs) + L" ms.");
+    }
+    if (activity.wake_source != WakeSource::kTimer && activity.wake_source != WakeSource::kEvent && activity.wake_source != WakeSource::kWindowMessage)
+    {
+        out.Thread(thread, Field::kWakeSource, L"Select a valid wake source.");
+    }
 }
 
 } // namespace
@@ -184,9 +192,9 @@ size_t ValidationResult::WarningCount() const noexcept
     return issues.size() - ErrorCount();
 }
 
-ActivityRelevance RelevanceOf(const ActivityConfig& activity)
+ActivityRelevance RelevanceOf(const ActivityConfig& activity, bool uses_shared_mutex)
 {
-    return {activity.work_percent < 100, activity.work_percent < 100};
+    return {activity.work_percent < 100 || uses_shared_mutex, activity.work_percent < 100 && activity.wake_source == WakeSource::kTimer, activity.work_percent < 100};
 }
 
 ValidationResult Validate(const RunConfig& run, const platform::Topology& topology, const platform::ProcessSettings& process)

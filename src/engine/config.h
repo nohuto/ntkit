@@ -29,15 +29,18 @@ inline constexpr uint32_t kMinWorkPercent = 1;
 inline constexpr uint32_t kMaxWorkPercent = 100;
 inline constexpr uint32_t kMinPeriodMs = 1;
 inline constexpr uint32_t kMaxPeriodMs = 10000;
+inline constexpr uint32_t kMaxStartDelayMs = 60000;
 
 // relative thread priority within the process priority class
 enum class RelativeThreadPriority : int8_t
 {
+    kIdle = -15,
     kLowest = -2,
     kBelowNormal = -1,
     kNormal = 0,
     kAboveNormal = 1,
     kHighest = 2,
+    kTimeCritical = 15,
 };
 
 enum class AffinityMode : uint8_t
@@ -53,6 +56,13 @@ enum class WaitableTimerKind : uint8_t
     kHighResolution,
 };
 
+enum class WakeSource : uint8_t
+{
+    kTimer = 0,
+    kEvent,
+    kWindowMessage,
+};
+
 enum class ActivityLevel : uint8_t
 {
     kLow,
@@ -64,11 +74,14 @@ enum class ActivityLevel : uint8_t
 
 // periods start at run origin + k * period_ms, work fills work_percent of each period
 // waitable timer waits for the next period, 100 percent runs without waits
+// a start delay holds the thread after the run starts, its first period is the one containing the release
 struct ActivityConfig
 {
     uint32_t work_percent = 100;
     uint32_t period_ms = 100;
     WaitableTimerKind waitable_timer_kind = WaitableTimerKind::kDefault;
+    uint32_t start_delay_ms = 0;
+    WakeSource wake_source = WakeSource::kTimer;
 
     bool operator==(const ActivityConfig&) const = default;
 };
@@ -119,6 +132,8 @@ const wchar_t* RelativeThreadPriorityKey(RelativeThreadPriority value);
 const wchar_t* AffinityModeKey(AffinityMode value);
 const wchar_t* WaitableTimerKindLabel(WaitableTimerKind value);
 const wchar_t* WaitableTimerKindKey(WaitableTimerKind value);
+const wchar_t* WakeSourceLabel(WakeSource value);
+const wchar_t* WakeSourceKey(WakeSource value);
 ActivityLevel ActivityLevelOf(const ActivityConfig& activity);
 uint32_t ActivityLevelWork(ActivityLevel value);
 const wchar_t* ActivityLevelLabel(ActivityLevel value);
@@ -127,13 +142,16 @@ const wchar_t* ActivityLevelKey(ActivityLevel value);
 bool ParseRelativeThreadPriorityKey(std::wstring_view key, RelativeThreadPriority* out);
 bool ParseAffinityModeKey(std::wstring_view key, AffinityMode* out);
 bool ParseWaitableTimerKindKey(std::wstring_view key, WaitableTimerKind* out);
+bool ParseWakeSourceKey(std::wstring_view key, WakeSource* out);
 
 inline constexpr RelativeThreadPriority kAllRelativeThreadPriorities[] = {
+    RelativeThreadPriority::kIdle,
     RelativeThreadPriority::kLowest,
     RelativeThreadPriority::kBelowNormal,
     RelativeThreadPriority::kNormal,
     RelativeThreadPriority::kAboveNormal,
     RelativeThreadPriority::kHighest,
+    RelativeThreadPriority::kTimeCritical,
 };
 
 ThreadConfig MakeDefaultThread(size_t index);

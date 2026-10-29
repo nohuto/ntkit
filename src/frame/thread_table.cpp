@@ -60,9 +60,9 @@ std::wstring Percent(double value)
     return platform::FormatFixed(value, 1);
 }
 
-std::wstring ActivityText(const engine::ActivityConfig& activity)
+std::wstring ActivityText(const engine::ActivityConfig& activity, bool uses_shared_mutex)
 {
-    return DescribeActivity(activity) + (engine::RelevanceOf(activity).waitable_timer_kind && activity.waitable_timer_kind == engine::WaitableTimerKind::kHighResolution ? L", high resolution timer" : L"");
+    return DescribeActivity(activity, uses_shared_mutex) + (engine::RelevanceOf(activity, uses_shared_mutex).waitable_timer_kind && activity.waitable_timer_kind == engine::WaitableTimerKind::kHighResolution ? L", high resolution timer" : L"");
 }
 
 std::wstring Clean(std::wstring text)
@@ -161,9 +161,31 @@ void ThreadTable::ApplyColumns(const std::vector<int>& widths, UINT dpi)
 
 void ThreadTable::ApplyColumnOrder()
 {
-    std::vector<int> order(kColumnCount);
-    std::iota(order.begin(), order.end(), 0);
-    std::swap(order[0], order[static_cast<size_t>(TableColumn::kIndex)]);
+    // identity, behaviour, priority, placement, usage
+    constexpr TableColumn kOrder[] = {
+        TableColumn::kIndex,
+        TableColumn::kName,
+        TableColumn::kThreadId,
+        TableColumn::kState,
+        TableColumn::kActivity,
+        TableColumn::kSharedMutex,
+        TableColumn::kRelativePriority,
+        TableColumn::kPriorityBoost,
+        TableColumn::kBasePriority,
+        TableColumn::kCurrentPriority,
+        TableColumn::kGroupAffinity,
+        TableColumn::kSelectedCpuSets,
+        TableColumn::kIdealProcessor,
+        TableColumn::kCpuPercent,
+        TableColumn::kCpuTime,
+        TableColumn::kContextSwitches,
+    };
+    static_assert(std::size(kOrder) == kColumnCount);
+    std::vector<int> order;
+    for (const TableColumn column : kOrder)
+    {
+        order.push_back(static_cast<int>(column));
+    }
     ListView_SetColumnOrderArray(list_, static_cast<int>(order.size()), order.data());
 }
 
@@ -391,6 +413,8 @@ std::wstring ThreadTable::CellText(int thread, TableColumn column) const
     const engine::ThreadConfig& config = config_->threads[static_cast<size_t>(thread)];
     const engine::ThreadSnapshot* observed = Observed(thread);
     const engine::ThreadSample* sample = observed && observed->sample ? &*observed->sample : nullptr;
+    // during a run the settings columns show what Windows reports, the requested values are in Details
+    const engine::AppliedSettings* applied = snapshot_ && !engine::IsTerminal(snapshot_->state) && observed && observed->thread_id ? &observed->applied : nullptr;
     switch (column)
     {
     case TableColumn::kName:
@@ -402,30 +426,50 @@ std::wstring ThreadTable::CellText(int thread, TableColumn column) const
     case TableColumn::kState:
         return observed ? ThreadStateText(*observed, snapshot_->environment ? snapshot_->environment->windows_build : 0) : std::wstring();
     case TableColumn::kRelativePriority:
+        if (applied)
+        {
+            return applied->relative_priority_readback ? engine::DescribeRelativePriority(*applied->relative_priority_readback) : std::wstring();
+        }
         return engine::DescribeRelativePriority(static_cast<int32_t>(config.scheduling.relative_priority));
     case TableColumn::kBasePriority:
         return sample && sample->base_priority ? std::to_wstring(*sample->base_priority) : std::wstring();
     case TableColumn::kCurrentPriority:
         return sample && sample->current_priority ? std::to_wstring(*sample->current_priority) : std::wstring();
     case TableColumn::kPriorityBoost:
+        if (applied)
+        {
+            return applied->priority_boost_disabled_readback ? (*applied->priority_boost_disabled_readback ? L"Off" : L"On") : std::wstring();
+        }
         return config.scheduling.priority_boost_enabled ? L"On" : L"Off";
     case TableColumn::kGroupAffinity:
         {
+            if (applied)
+            {
+                return applied->group_affinity_readback ? platform::DescribeGroupAffinity(applied->group_affinity_readback->group, applied->group_affinity_readback->mask) : std::wstring();
+            }
             const engine::ThreadAffinityConfig& affinity_config = config.affinity;
             return affinity_config.mode == engine::AffinityMode::kGroupAffinity ? platform::DescribeGroupAffinity(affinity_config.group_affinity.group, affinity_config.group_affinity.mask) : std::wstring();
         }
     case TableColumn::kSelectedCpuSets:
         {
+            if (applied)
+            {
+                return applied->selected_cpu_set_ids_readback ? DescribeCpuSetIds(*applied->selected_cpu_set_ids_readback) : std::wstring();
+            }
             const engine::ThreadAffinityConfig& affinity_config = config.affinity;
             return affinity_config.mode == engine::AffinityMode::kCpuSets ? DescribeCpuSetIds(affinity_config.selected_cpu_set_ids) : std::wstring();
         }
     case TableColumn::kIdealProcessor:
         {
+            if (applied)
+            {
+                return applied->ideal_processor_readback ? platform::DescribeProcessor(*applied->ideal_processor_readback) : std::wstring();
+            }
             const engine::ThreadAffinityConfig& affinity_config = config.affinity;
             return affinity_config.ideal_processor_enabled ? platform::DescribeProcessor(affinity_config.ideal_processor) : std::wstring();
         }
     case TableColumn::kActivity:
-        return ActivityText(config.activity);
+        return ActivityText(config.activity, config.uses_shared_mutex);
     case TableColumn::kSharedMutex:
         return config.uses_shared_mutex ? L"Yes" : L"";
     case TableColumn::kCpuPercent:
@@ -704,7 +748,7 @@ std::vector<int> ThreadTable::DefaultWidths(UINT dpi) const
             for (const uint32_t work : {25u, 50u, 75u, 99u})
             {
                 const engine::ActivityConfig longest = {work, 10000, engine::WaitableTimerKind::kHighResolution};
-                width = std::max(width, ListView_GetStringWidth(list_, ActivityText(longest).c_str()) + win32ui::Scale(24, dpi));
+                width = std::max(width, ListView_GetStringWidth(list_, ActivityText(longest, false).c_str()) + win32ui::Scale(24, dpi));
             }
         }
         widths.push_back(width);

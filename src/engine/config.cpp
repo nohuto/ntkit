@@ -18,11 +18,13 @@ struct Names
 };
 
 constexpr Names<RelativeThreadPriority> kRelativeThreadPriorityNames[] = {
+    {RelativeThreadPriority::kIdle, L"idle", L"Idle"},
     {RelativeThreadPriority::kLowest, L"lowest", L"Lowest"},
     {RelativeThreadPriority::kBelowNormal, L"below_normal", L"Below normal"},
     {RelativeThreadPriority::kNormal, L"normal", L"Normal"},
     {RelativeThreadPriority::kAboveNormal, L"above_normal", L"Above normal"},
     {RelativeThreadPriority::kHighest, L"highest", L"Highest"},
+    {RelativeThreadPriority::kTimeCritical, L"time_critical", L"Time critical"},
 };
 
 constexpr Names<AffinityMode> kAffinityModeNames[] = {
@@ -34,6 +36,12 @@ constexpr Names<AffinityMode> kAffinityModeNames[] = {
 constexpr Names<WaitableTimerKind> kWaitableTimerKindNames[] = {
     {WaitableTimerKind::kDefault, L"default", L"Default waitable timer"},
     {WaitableTimerKind::kHighResolution, L"high_resolution", L"High-resolution waitable timer"},
+};
+
+constexpr Names<WakeSource> kWakeSourceNames[] = {
+    {WakeSource::kTimer, L"timer", L"Waitable timer"},
+    {WakeSource::kEvent, L"event", L"Event"},
+    {WakeSource::kWindowMessage, L"window_message", L"Window message"},
 };
 
 constexpr Names<ActivityLevel> kActivityLevelNames[] = {
@@ -103,6 +111,14 @@ const wchar_t* WaitableTimerKindKey(WaitableTimerKind value)
 {
     return KeyOf(kWaitableTimerKindNames, value);
 }
+const wchar_t* WakeSourceLabel(WakeSource value)
+{
+    return LabelOf(kWakeSourceNames, value);
+}
+const wchar_t* WakeSourceKey(WakeSource value)
+{
+    return KeyOf(kWakeSourceNames, value);
+}
 
 ActivityLevel ActivityLevelOf(const ActivityConfig& activity)
 {
@@ -154,6 +170,10 @@ bool ParseAffinityModeKey(std::wstring_view key, AffinityMode* out)
 bool ParseWaitableTimerKindKey(std::wstring_view key, WaitableTimerKind* out)
 {
     return ParseKey(kWaitableTimerKindNames, key, out);
+}
+bool ParseWakeSourceKey(std::wstring_view key, WakeSource* out)
+{
+    return ParseKey(kWakeSourceNames, key, out);
 }
 
 ThreadConfig MakeDefaultThread(size_t index)

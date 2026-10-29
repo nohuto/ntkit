@@ -51,6 +51,10 @@ struct Thread
     size_t index = 0;
     win32ui::UniqueHandle handle;
     win32ui::UniqueHandle timer;
+    win32ui::UniqueHandle wake_event;
+    uint32_t id = 0;
+    SchedulingConfig requested_scheduling;
+    ThreadAffinityConfig requested_affinity;
     bool suspended = false;
     std::atomic<bool> parked{false};
     std::atomic<DWORD> park_error{ERROR_SUCCESS};
@@ -117,6 +121,8 @@ class Execution
             auto thread = std::make_unique<Thread>();
             thread->owner = this;
             thread->index = index;
+            thread->requested_scheduling = plan.config.threads[index].scheduling;
+            thread->requested_affinity = plan.config.threads[index].affinity;
             if (plan.config.threads[index].active)
             {
                 ++active_;
@@ -130,7 +136,7 @@ class Execution
         End();
         for (;;)
         {
-            bool pending = false;
+            bool pending = waker_ && WaitForSingleObject(waker_.get(), 0) != WAIT_OBJECT_0;
             for (auto& thread : threads_)
             {
                 if (!thread->handle || WaitForSingleObject(thread->handle.get(), 0) == WAIT_OBJECT_0)
@@ -195,7 +201,23 @@ class Execution
         {
             WaitForSingleObject(context_.stop_event(), options_.setup_delay_ms);
         }
-        for (auto& thread : threads_)
+        // a thread created in the foreground process starts with the foreground boost unless the process disables boosts,
+        // SetThreadPriorityBoost comes too late to remove it, so workers without boosts are created with process boosts off
+        BOOL process_boost_disabled = FALSE;
+        const bool restore_process_boost = GetProcessPriorityBoost(GetCurrentProcess(), &process_boost_disabled) != FALSE;
+        struct RestoreProcessBoost
+        {
+            bool restore;
+            BOOL disabled;
+            ~RestoreProcessBoost()
+            {
+                if (restore)
+                {
+                    SetProcessPriorityBoost(GetCurrentProcess(), disabled);
+                }
+            }
+        };
+        for (RestoreProcessBoost restore_boost{restore_process_boost, process_boost_disabled}; auto& thread : threads_)
         {
             if (context_.stop_requested())
             {
@@ -206,11 +228,36 @@ class Execution
             {
                 continue;
             }
+            if (restore_process_boost)
+            {
+                SetProcessPriorityBoost(GetCurrentProcess(), Config(*thread).scheduling.priority_boost_enabled ? process_boost_disabled : TRUE);
+            }
             if (!Setup(*thread))
             {
                 AbortSetup(true);
                 return;
             }
+        }
+        // SetProcessPriorityBoost also sets every existing thread, so each worker gets its own setting again
+        for (auto& thread : threads_)
+        {
+            if (!thread->handle || !restore_process_boost)
+            {
+                continue;
+            }
+            auto& observed = base_.threads[thread->index];
+            if (!SetThreadPriorityBoost(thread->handle.get(), !Config(*thread).scheduling.priority_boost_enabled))
+            {
+                observed.applied.priority_boost.succeeded = false;
+                observed.applied.priority_boost.error = platform::LastWin32Error(L"SetThreadPriorityBoost").WithContext(ThreadContext(thread->index, Config(*thread)));
+                observed.error = observed.applied.priority_boost.error;
+                ReadThreadPolicy(thread->handle.get(), observed.applied);
+                observed.state = ThreadRunState::kFailed;
+                base_.failure = *observed.error;
+                AbortSetup(true);
+                return;
+            }
+            ReadThreadPolicy(thread->handle.get(), observed.applied);
         }
         base_.state = RunState::kStarting;
         Publish();
@@ -244,6 +291,12 @@ class Execution
         context_.SetRunOrigin(origin);
         base_.origin_qpc = origin;
         SetEvent(gate_.get());
+        if (!StartWaker())
+        {
+            AbortSetup(true);
+            return;
+        }
+        ApplyPendingPolicies();
         Baseline();
         base_.state = RunState::kActive;
         Sample();
@@ -287,7 +340,18 @@ class Execution
         auto& observed = base_.threads[thread.index];
         const auto& config = Config(thread);
         const auto identity = ThreadContext(thread.index, config);
-        if (config.activity.work_percent < 100)
+        if (config.activity.work_percent < 100 && config.activity.wake_source == WakeSource::kEvent)
+        {
+            thread.wake_event.reset(CreateEventW(nullptr, FALSE, FALSE, nullptr));
+            if (!thread.wake_event)
+            {
+                observed.error = platform::LastWin32Error(L"CreateEventW (activity wake)").WithContext(identity);
+                observed.state = ThreadRunState::kFailed;
+                base_.failure = observed.error;
+                return false;
+            }
+        }
+        if (config.activity.work_percent < 100 && config.activity.wake_source == WakeSource::kTimer)
         {
             auto& outcome = observed.applied.waitable_timer;
             outcome.attempted = true;
@@ -334,6 +398,7 @@ class Execution
         thread.handle.reset(reinterpret_cast<HANDLE>(created));
         thread.suspended = true;
         observed.thread_id = id;
+        thread.id = id;
         const std::wstring name = L"ThreadSim thread " + std::to_wstring(thread.index + 1) + L": " + config.name;
         const HRESULT named = SetThreadDescription(thread.handle.get(), name.c_str());
         if (FAILED(named))
@@ -357,6 +422,174 @@ class Execution
             return false;
         }
         return true;
+    }
+
+    bool UsesWaker(const Thread& thread) const
+    {
+        const auto& config = Config(thread);
+        return config.active && config.activity.work_percent < 100 && config.activity.wake_source != WakeSource::kTimer;
+    }
+
+    bool StartWaker()
+    {
+        if (std::none_of(threads_.begin(), threads_.end(), [&](const auto& thread) { return UsesWaker(*thread); }))
+        {
+            return true;
+        }
+        if (!options_.force_high_resolution_fallback)
+        {
+            waker_timer_.reset(CreateWaitableTimerExW(nullptr, nullptr, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS));
+        }
+        if (!waker_timer_)
+        {
+            auto error = options_.force_high_resolution_fallback ? platform::Win32Error(ERROR_INVALID_PARAMETER, L"CreateWaitableTimerExW (waker high resolution)")
+                                                                 : platform::LastWin32Error(L"CreateWaitableTimerExW (waker high resolution)");
+            waker_timer_.reset(CreateWaitableTimerExW(nullptr, nullptr, 0, TIMER_ALL_ACCESS));
+            if (!waker_timer_)
+            {
+                base_.failure = platform::LastWin32Error(L"CreateWaitableTimerExW (waker)");
+            }
+            else
+            {
+                error.detail = L"High resolution waker timer unavailable. Using a default timer.";
+            }
+            for (auto& thread : threads_)
+            {
+                if (UsesWaker(*thread))
+                {
+                    Warn(*thread, error);
+                }
+            }
+            if (!waker_timer_)
+            {
+                return false;
+            }
+        }
+        const uintptr_t created = _beginthreadex(nullptr, 0, &Execution::WakerEntry, this, 0, nullptr);
+        if (!created)
+        {
+            base_.failure = platform::CrtError(errno, L"_beginthreadex (waker)");
+            return false;
+        }
+        waker_.reset(reinterpret_cast<HANDLE>(created));
+        base_.notices.push_back(L"ThreadSim waker runs at Time critical thread priority with priority boosts off and no explicit affinity.");
+        return true;
+    }
+
+    void FailWaker(platform::Error error)
+    {
+        {
+            std::lock_guard lock(status_mutex_);
+            if (!failure_)
+            {
+                failure_ = std::move(error);
+            }
+        }
+        End();
+        SetEvent(changed_.get());
+    }
+
+    static unsigned __stdcall WakerEntry(void* parameter)
+    {
+        auto& execution = *static_cast<Execution*>(parameter);
+        try
+        {
+            execution.WakeWorkers();
+        }
+        catch (...)
+        {
+            execution.FailWaker(platform::InternalError(L"Waker", L"An exception interrupted the waker."));
+        }
+        SetEvent(execution.changed_.get());
+        return 0;
+    }
+
+    void WakeWorkers()
+    {
+        const HRESULT named = SetThreadDescription(GetCurrentThread(), L"ThreadSim waker");
+        if (FAILED(named))
+        {
+            FailWaker(platform::HResultError(named, L"SetThreadDescription (waker)"));
+            return;
+        }
+        if (!SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL))
+        {
+            FailWaker(platform::LastWin32Error(L"SetThreadPriority (waker)"));
+            return;
+        }
+        if (!SetThreadPriorityBoost(GetCurrentThread(), TRUE))
+        {
+            FailWaker(platform::LastWin32Error(L"SetThreadPriorityBoost (waker)"));
+            return;
+        }
+        struct WakeSchedule
+        {
+            Thread* thread;
+            PeriodSchedule schedule;
+            uint64_t next = 0;
+        };
+        std::vector<WakeSchedule> schedules;
+        for (auto& thread : threads_)
+        {
+            if (UsesWaker(*thread))
+            {
+                schedules.push_back({thread.get(), PeriodSchedule(context_.run_origin(), QpcClock::Frequency(), Config(*thread).activity)});
+            }
+        }
+        const HANDLE handles[] = {context_.stop_event(), end_event_.get(), waker_timer_.get()};
+        while (!context_.stop_requested() && !end_.load(std::memory_order_relaxed))
+        {
+            const int64_t now = QpcClock::Now();
+            std::optional<int64_t> earliest;
+            for (auto& entry : schedules)
+            {
+                auto& thread = *entry.thread;
+                if (thread.finished.load(std::memory_order_acquire) || context_.desired(thread.index) == ThreadRequest::kStop)
+                {
+                    continue;
+                }
+                // a suspended or still pending worker cannot take a wake, posted messages would pile up in its queue
+                const ThreadRunState state = thread.counters.state.load(std::memory_order_relaxed);
+                const bool takes_wake = context_.desired(thread.index) != ThreadRequest::kSuspend && state != ThreadRunState::kPending && state != ThreadRunState::kSuspending;
+                if (now >= entry.schedule.Boundary(entry.next))
+                {
+                    entry.next = entry.schedule.Containing(now) + 1;
+                    const bool event = Config(thread).activity.wake_source == WakeSource::kEvent;
+                    if (takes_wake && event && !SetEvent(thread.wake_event.get()))
+                    {
+                        Warn(thread, platform::LastWin32Error(L"SetEvent (activity wake)"));
+                    }
+                    else if (takes_wake && !event && !PostThreadMessageW(thread.id, WM_APP, 0, 0))
+                    {
+                        Warn(thread, platform::LastWin32Error(L"PostThreadMessageW (activity wake)"));
+                    }
+                }
+                const int64_t boundary = entry.schedule.Boundary(entry.next);
+                earliest = earliest ? std::min(*earliest, boundary) : boundary;
+            }
+            if (!earliest)
+            {
+                return;
+            }
+            const uint64_t difference = static_cast<uint64_t>(std::max<int64_t>(1, *earliest - QpcClock::Now()));
+            LARGE_INTEGER due;
+            due.QuadPart = -static_cast<int64_t>(std::max<uint64_t>(1, MultiplyDivide(difference, 10'000'000, static_cast<uint64_t>(QpcClock::Frequency()))));
+            if (!SetWaitableTimer(waker_timer_.get(), &due, 0, nullptr, nullptr, FALSE))
+            {
+                FailWaker(platform::LastWin32Error(L"SetWaitableTimer (waker)"));
+                return;
+            }
+            const DWORD wait = WaitForMultipleObjects(3, handles, FALSE, INFINITE);
+            if (wait == WAIT_FAILED)
+            {
+                FailWaker(platform::LastWin32Error(L"WaitForMultipleObjects (waker)"));
+                return;
+            }
+            if (wait != WAIT_OBJECT_0 + 2)
+            {
+                return;
+            }
+        }
     }
 
     bool Resume(Thread& thread)
@@ -438,6 +671,13 @@ class Execution
         {
             SetEvent(changed_.get());
         }
+    }
+
+    void Warn(Thread& thread, platform::Error error)
+    {
+        error.WithContext(ThreadContext(thread.index, Config(thread)));
+        std::lock_guard lock(status_mutex_);
+        thread.warning = error.Describe();
     }
 
     void Fail(Thread& thread, platform::Error error)
@@ -542,6 +782,45 @@ class Execution
 
     bool Rest(Thread& thread, int64_t boundary)
     {
+        const WakeSource source = Config(thread).activity.wake_source;
+        if (source != WakeSource::kTimer)
+        {
+            DWORD wait = WAIT_FAILED;
+            int64_t woke = 0;
+            bool signaled = false;
+            if (source == WakeSource::kEvent)
+            {
+                const HANDLE handles[] = {thread.wake_event.get(), context_.stop_event(), context_.thread_event(thread.index), end_event_.get()};
+                wait = WaitForMultipleObjects(4, handles, FALSE, INFINITE);
+                woke = QpcClock::Now();
+                signaled = wait == WAIT_OBJECT_0;
+            }
+            else
+            {
+                const HANDLE handles[] = {context_.stop_event(), context_.thread_event(thread.index), end_event_.get()};
+                wait = MsgWaitForMultipleObjectsEx(3, handles, INFINITE, QS_POSTMESSAGE, MWMO_INPUTAVAILABLE);
+                woke = QpcClock::Now();
+                if (wait == WAIT_OBJECT_0 + 3)
+                {
+                    MSG message{};
+                    while (PeekMessageW(&message, nullptr, 0, 0, PM_REMOVE))
+                    {
+                        signaled = true;
+                    }
+                }
+            }
+            if (wait == WAIT_FAILED)
+            {
+                Fail(thread, platform::LastWin32Error(source == WakeSource::kEvent ? L"WaitForMultipleObjects (activity event)" : L"MsgWaitForMultipleObjectsEx (activity messages)"));
+                return false;
+            }
+            // a signal left from a boundary the thread worked through ends the wait early and is not a wake
+            if (signaled && woke >= boundary)
+            {
+                thread.counters.wake.Record(static_cast<uint64_t>(QpcClock::TicksToMicroseconds(woke - boundary)));
+            }
+            return true;
+        }
         if (options_.force_timer_failure_thread == thread.index)
         {
             Fail(thread, platform::Win32Error(ERROR_GEN_FAILURE, L"SetWaitableTimer"));
@@ -593,6 +872,11 @@ class Execution
 
     void Work(Thread& thread)
     {
+        if (Config(thread).activity.wake_source == WakeSource::kWindowMessage)
+        {
+            MSG message{};
+            PeekMessageW(&message, nullptr, 0, 0, PM_NOREMOVE);
+        }
         if (ready_count_.fetch_add(1, std::memory_order_relaxed) + 1 == active_)
         {
             SetEvent(ready_.get());
@@ -626,6 +910,43 @@ class Execution
             }
         } ownership{mutex_.get(), owns};
         uint64_t expected = 0;
+        if (config.activity.start_delay_ms > 0)
+        {
+            const int64_t release = context_.run_origin() + static_cast<int64_t>(MultiplyDivide(config.activity.start_delay_ms, static_cast<uint64_t>(QpcClock::Frequency()), 1000));
+            const HANDLE handles[] = {context_.stop_event(), end_event_.get(), context_.thread_event(thread.index)};
+            for (;;)
+            {
+                bool resumed = false;
+                if (!Checkpoint(thread, owns, resumed))
+                {
+                    return;
+                }
+                State(thread, ThreadRunState::kPending);
+                const int64_t now = QpcClock::Now();
+                if (now >= release)
+                {
+                    // work window that ended during the delay is not a missed period
+                    expected = schedule.Containing(now);
+                    if (now >= schedule.WorkEnd(expected))
+                    {
+                        ++expected;
+                    }
+                    break;
+                }
+                const uint64_t remaining_ms = MultiplyDivide(static_cast<uint64_t>(release - now), 1000, static_cast<uint64_t>(QpcClock::Frequency()));
+                const DWORD wait = WaitForMultipleObjects(3, handles, FALSE, static_cast<DWORD>(std::max<uint64_t>(1, remaining_ms)));
+                if (wait == WAIT_OBJECT_0 || wait == WAIT_OBJECT_0 + 1)
+                {
+                    State(thread, ThreadRunState::kStopped);
+                    return;
+                }
+                if (wait == WAIT_FAILED)
+                {
+                    Fail(thread, platform::LastWin32Error(L"WaitForMultipleObjects (start delay)"));
+                    return;
+                }
+            }
+        }
         uint64_t checksum = static_cast<uint64_t>(QpcClock::Now()) ^ ((thread.index + 1) * 0x9E3779B97F4A7C15ull);
         for (;;)
         {
@@ -672,6 +993,7 @@ class Execution
                 }
             }
             const int64_t window_start = QpcClock::Now();
+            const std::optional<int64_t> work_end = !continuous || config.uses_shared_mutex ? std::optional(schedule.WorkEnd(period)) : std::nullopt;
             int64_t next_priority = window_start;
             bool realign = false;
             bool worked = false;
@@ -689,11 +1011,19 @@ class Execution
                     realign = true;
                     break;
                 }
-                if ((!continuous || config.uses_shared_mutex) && now >= schedule.WorkEnd(period))
+                if (work_end && now >= *work_end)
                 {
                     break;
                 }
                 ReadPriority(thread, now, window_start, next_priority);
+                if (work_end)
+                {
+                    now = QpcClock::Now();
+                    if (now >= *work_end)
+                    {
+                        break;
+                    }
+                }
                 checksum = WorkloadBatch(checksum);
                 thread.counters.checksum.store(checksum, std::memory_order_relaxed);
                 thread.counters.batches.fetch_add(1, std::memory_order_relaxed);
@@ -754,9 +1084,13 @@ class Execution
     {
         const int64_t now = QpcClock::Now();
         const uint64_t tsc = __rdtsc();
-        if (invariant_counter_ && rate_qpc_ && now > rate_qpc_)
+        if (invariant_counter_ && rate_qpc_ && now > rate_qpc_ && tsc > rate_tsc_)
         {
-            base_.cycle_counter_hz = static_cast<double>(tsc - rate_tsc_) * static_cast<double>(QpcClock::Frequency()) / static_cast<double>(now - rate_qpc_);
+            const double rate = static_cast<double>(tsc - rate_tsc_) * static_cast<double>(QpcClock::Frequency()) / static_cast<double>(now - rate_qpc_);
+            if (rate >= 100'000'000.0 && rate <= 10'000'000'000.0)
+            {
+                base_.cycle_counter_hz = rate;
+            }
         }
     }
 
@@ -986,6 +1320,178 @@ class Execution
         }
     }
 
+    void ApplyPendingPolicies(bool close = false)
+    {
+        for (const auto& request : context_.TakeThreadPolicies(close))
+        {
+            ApplyPolicyRequest(request);
+        }
+    }
+
+    void ApplyPolicyRequest(const ThreadPolicyRequest& request)
+    {
+        Thread* thread = request.thread < threads_.size() ? threads_[request.thread].get() : nullptr;
+        const SchedulingConfig previous_scheduling = thread ? thread->requested_scheduling : SchedulingConfig{};
+        const ThreadAffinityConfig previous_affinity = thread ? thread->requested_affinity : ThreadAffinityConfig{};
+        AppliedSettings* applied = thread ? &base_.threads[request.thread].applied : nullptr;
+        std::optional<platform::Error> unavailable;
+        if (!thread || !Config(*thread).active || !thread->handle || end_.load(std::memory_order_relaxed) ||
+            context_.desired(request.thread) == ThreadRequest::kStop || thread->finished.load(std::memory_order_acquire) ||
+            thread->counters.state.load(std::memory_order_relaxed) == ThreadRunState::kFailed ||
+            thread->counters.state.load(std::memory_order_relaxed) == ThreadRunState::kStopped)
+        {
+            unavailable = platform::Win32Error(ERROR_INVALID_THREAD_ID, L"Apply live thread policy");
+            unavailable->detail = L"The requested thread is not running. It is inactive, stopped, failed or unavailable.";
+        }
+        else
+        {
+            const DWORD wait = WaitForSingleObject(thread->handle.get(), 0);
+            if (wait == WAIT_OBJECT_0)
+            {
+                unavailable = platform::Win32Error(ERROR_INVALID_THREAD_ID, L"Apply live thread policy");
+                unavailable->detail = L"The requested thread has stopped.";
+            }
+            else if (wait == WAIT_FAILED)
+            {
+                unavailable = platform::LastWin32Error(L"WaitForSingleObject (live thread policy)");
+            }
+        }
+        bool attempted = false;
+        std::vector<std::wstring_view> failed;
+        auto set = [&](const wchar_t* setting, const std::wstring& value, SettingOutcome* outcome, auto setter) {
+            attempted = true;
+            const platform::Status status = unavailable ? platform::Status(*unavailable) : setter();
+            if (!status)
+            {
+                failed.push_back(setting);
+            }
+            LiveChange change;
+            change.thread_index = request.thread;
+            change.setting = setting;
+            change.value = value;
+            change.succeeded = status.ok();
+            if (!status)
+            {
+                change.error = status.error();
+                if (thread)
+                {
+                    change.error->WithContext(ThreadContext(thread->index, Config(*thread)));
+                    Warn(*thread, *change.error);
+                }
+            }
+            if (outcome)
+            {
+                *outcome = {true, change.succeeded, change.error};
+            }
+            context_.RecordLiveChange(std::move(change));
+        };
+        auto status = [](BOOL succeeded, const wchar_t* operation) {
+            return succeeded ? platform::Status::Ok() : platform::Status(platform::LastWin32Error(operation));
+        };
+        auto group_value = [](const platform::GroupAffinity& group) {
+            return L"group " + std::to_wstring(group.group) + L": " + platform::FormatMaskList(group.mask);
+        };
+        const auto& affinity = request.affinity;
+        if (affinity.mode == AffinityMode::kGroupAffinity &&
+            (previous_affinity.mode != affinity.mode || previous_affinity.group_affinity != affinity.group_affinity))
+        {
+            set(L"group_affinity", group_value(affinity.group_affinity), applied ? &applied->group_affinity : nullptr, [&] {
+                GROUP_AFFINITY group{};
+                group.Group = affinity.group_affinity.group;
+                group.Mask = affinity.group_affinity.mask;
+                return status(SetThreadGroupAffinity(thread->handle.get(), &group, nullptr), L"SetThreadGroupAffinity");
+            });
+        }
+        if (affinity.mode != AffinityMode::kGroupAffinity && previous_affinity.mode == AffinityMode::kGroupAffinity)
+        {
+            std::wstring value = AffinityModeKey(AffinityMode::kDefault);
+            set(L"group_affinity", value, applied ? &applied->group_affinity : nullptr, [&] {
+                GROUP_AFFINITY group{};
+                if (!GetThreadGroupAffinity(GetCurrentThread(), &group))
+                {
+                    return platform::Status(platform::LastWin32Error(L"GetThreadGroupAffinity (process group)"));
+                }
+                DWORD_PTR process_mask = 0, system_mask = 0;
+                if (!GetProcessAffinityMask(GetCurrentProcess(), &process_mask, &system_mask))
+                {
+                    return platform::Status(platform::LastWin32Error(L"GetProcessAffinityMask"));
+                }
+                group.Mask = process_mask;
+                value = group_value({group.Group, group.Mask});
+                return status(SetThreadGroupAffinity(thread->handle.get(), &group, nullptr), L"SetThreadGroupAffinity");
+            });
+        }
+        if ((affinity.mode == AffinityMode::kCpuSets &&
+             (previous_affinity.mode != affinity.mode || previous_affinity.selected_cpu_set_ids != affinity.selected_cpu_set_ids)) ||
+            (affinity.mode != AffinityMode::kCpuSets && previous_affinity.mode == AffinityMode::kCpuSets))
+        {
+            const std::vector<ULONG> ids = affinity.mode == AffinityMode::kCpuSets ? std::vector<ULONG>(affinity.selected_cpu_set_ids.begin(), affinity.selected_cpu_set_ids.end()) : std::vector<ULONG>{};
+            std::wstring value;
+            for (ULONG id : ids)
+            {
+                value += (value.empty() ? L"" : L",") + std::to_wstring(id);
+            }
+            set(L"selected_cpu_sets", value, applied ? &applied->selected_cpu_sets : nullptr, [&] {
+                return status(SetThreadSelectedCpuSets(thread->handle.get(), ids.empty() ? nullptr : ids.data(), static_cast<ULONG>(ids.size())), L"SetThreadSelectedCpuSets");
+            });
+        }
+        if (affinity.ideal_processor_enabled &&
+            (!previous_affinity.ideal_processor_enabled || previous_affinity.ideal_processor != affinity.ideal_processor))
+        {
+            const std::wstring value = L"group " + std::to_wstring(affinity.ideal_processor.group) + L" processor " + std::to_wstring(affinity.ideal_processor.number);
+            set(L"ideal_processor", value, applied ? &applied->ideal_processor : nullptr, [&] {
+                PROCESSOR_NUMBER processor{affinity.ideal_processor.group, affinity.ideal_processor.number, 0};
+                return status(SetThreadIdealProcessorEx(thread->handle.get(), &processor, nullptr), L"SetThreadIdealProcessorEx");
+            });
+        }
+        if (request.scheduling.relative_priority != previous_scheduling.relative_priority)
+        {
+            set(L"relative_priority", RelativeThreadPriorityKey(request.scheduling.relative_priority), applied ? &applied->relative_priority : nullptr, [&] {
+                return status(SetThreadPriority(thread->handle.get(), static_cast<int>(request.scheduling.relative_priority)), L"SetThreadPriority");
+            });
+        }
+        if (request.scheduling.priority_boost_enabled != previous_scheduling.priority_boost_enabled)
+        {
+            set(L"priority_boost", request.scheduling.priority_boost_enabled ? L"on" : L"off", applied ? &applied->priority_boost : nullptr, [&] {
+                return status(SetThreadPriorityBoost(thread->handle.get(), !request.scheduling.priority_boost_enabled), L"SetThreadPriorityBoost");
+            });
+        }
+        if (unavailable && !attempted)
+        {
+            set(L"relative_priority", RelativeThreadPriorityKey(request.scheduling.relative_priority), applied ? &applied->relative_priority : nullptr, [] { return platform::Status::Ok(); });
+        }
+        if (thread)
+        {
+            // a failed setting keeps its previous value, so asking for it again retries it
+            const auto failed_setting = [&](std::wstring_view setting) { return std::find(failed.begin(), failed.end(), setting) != failed.end(); };
+            thread->requested_scheduling = request.scheduling;
+            thread->requested_affinity = affinity;
+            if (failed_setting(L"group_affinity") || failed_setting(L"selected_cpu_sets"))
+            {
+                thread->requested_affinity.mode = previous_affinity.mode;
+                thread->requested_affinity.group_affinity = previous_affinity.group_affinity;
+                thread->requested_affinity.selected_cpu_set_ids = previous_affinity.selected_cpu_set_ids;
+            }
+            if (failed_setting(L"ideal_processor"))
+            {
+                thread->requested_affinity.ideal_processor_enabled = previous_affinity.ideal_processor_enabled;
+                thread->requested_affinity.ideal_processor = previous_affinity.ideal_processor;
+            }
+            if (failed_setting(L"relative_priority"))
+            {
+                thread->requested_scheduling.relative_priority = previous_scheduling.relative_priority;
+            }
+            if (failed_setting(L"priority_boost"))
+            {
+                thread->requested_scheduling.priority_boost_enabled = previous_scheduling.priority_boost_enabled;
+            }
+            if (!unavailable)
+            {
+                ReadThreadPolicy(thread->handle.get(), *applied);
+            }
+        }
+    }
+
     void UpdateSuspension()
     {
         for (auto& owner : threads_)
@@ -1058,6 +1564,7 @@ class Execution
                 continue;
             }
             UpdateSuspension();
+            ApplyPendingPolicies();
             Sample();
             Publish();
             const uint64_t elapsed_us = static_cast<uint64_t>(std::max<int64_t>(0, context_.ElapsedSinceOriginUs(QpcClock::Now())));
@@ -1077,6 +1584,7 @@ class Execution
 
     void Join()
     {
+        End();
         joining_ = true;
         for (auto& thread : threads_)
         {
@@ -1097,6 +1605,11 @@ class Execution
             std::array<HANDLE, MAXIMUM_WAIT_OBJECTS> handles{};
             DWORD count = 0;
             bool pending = false;
+            if (waker_ && WaitForSingleObject(waker_.get(), 0) != WAIT_OBJECT_0)
+            {
+                handles[count++] = waker_.get();
+                pending = true;
+            }
             for (auto& thread : threads_)
             {
                 if (!thread->handle || thread->joined)
@@ -1141,6 +1654,8 @@ class Execution
 
     void Finish(RunState state)
     {
+        End();
+        ApplyPendingPolicies(true);
         CollectStatus();
         base_.state = state;
         base_.ended_utc = UtcNowIso8601();
@@ -1167,6 +1682,8 @@ class Execution
     win32ui::UniqueHandle end_event_;
     win32ui::UniqueHandle changed_;
     win32ui::UniqueHandle mutex_;
+    win32ui::UniqueHandle waker_;
+    win32ui::UniqueHandle waker_timer_;
     std::mutex status_mutex_;
     std::optional<platform::Error> failure_;
     platform::SystemThreadQuery system_query_;

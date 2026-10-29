@@ -79,6 +79,13 @@ struct RunPlan
     std::shared_ptr<const platform::Environment> environment;
 };
 
+struct ThreadPolicyRequest
+{
+    uint32_t thread = 0;
+    SchedulingConfig scheduling;
+    ThreadAffinityConfig affinity;
+};
+
 // shared by UI controller, coordinator and worker threads
 // only coordinator calls Publish and SetRunOrigin
 class RunContext
@@ -129,6 +136,9 @@ class RunContext
 
     void RequestStopAll();
     void RequestThreads(std::span<const uint32_t> threads, ThreadRequest request);
+    void QueueThreadPolicy(ThreadPolicyRequest request);
+    std::vector<ThreadPolicyRequest> TakeThreadPolicies(bool close = false);
+    void RecordLiveChange(LiveChange change);
     bool Initialize();
     platform::Error initialization_error() const
     {
@@ -149,6 +159,10 @@ class RunContext
     bool published_final_ = false;
     std::shared_ptr<const RunSnapshot> last_;
     platform::Error init_error_;
+    std::mutex policy_mutex_;
+    std::vector<ThreadPolicyRequest> policy_requests_;
+    std::vector<LiveChange> live_changes_;
+    bool live_changes_closed_ = false;
 };
 
 class Backend
@@ -176,6 +190,9 @@ class RunController
     void RequestResume(std::span<const uint32_t> threads);
     void RequestStop(std::span<const uint32_t> threads);
     void RequestStopAll();
+
+    void ApplyThreadPolicy(uint32_t thread, const SchedulingConfig& scheduling, const ThreadAffinityConfig& affinity);
+    void RecordProcessChange(std::wstring setting, std::wstring value, const platform::Status& status);
 
     void SetSampleOtherThreads(bool enabled) noexcept;
     void RequestSample();

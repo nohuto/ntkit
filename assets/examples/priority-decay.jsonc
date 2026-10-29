@@ -1,7 +1,66 @@
-// Decaying works 750ms of each 1000ms period, so it runs long after each wake
-// in the FG every level is 2 higher, that FG boost stays for the whole window
+// 'Decaying' works 400ms of every 1000ms on logical CPU 2 for 5s and rests until a window message wakes it
+//
+// use 'Normal' process priority and keep thread-sim in the background, 'Decaying' has base priority 8
+// a posted window message readies 'Decaying' with an increment of 2, so it starts each window at 10
+// each quantum end removes one level, 10 for the first quantum, 9 for the second, then 8 until the window ends
+// 'Preempter' (Time critical) works 1ms of every 10ms on CPU 2, the context switches show each priority step in a trace
+// in the FG 23H2 adds a FG boost of 2 that does not decay, the steps are then 12, 11 and 10
 
 {
   "format": "thread-sim.run-config",
-  "name": "Priority decay"
+  "name": "Priority decay",
+  "duration_s": 5,
+  "sample_interval_ms": 500,
+  "threads": [
+    {
+      "name": "Decaying",
+      "active": true,
+      "shared_mutex": false,
+      "scheduling": {
+        "relative_priority": "normal",
+        "priority_boost_enabled": true
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          2
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 40,
+        "period_ms": 1000,
+        "waitable_timer_kind": "default",
+        "start_delay_ms": 0,
+        "wake_source": "window_message"
+      }
+    },
+    {
+      "name": "Preempter",
+      "active": true,
+      "shared_mutex": false,
+      "scheduling": {
+        "relative_priority": "time_critical",
+        "priority_boost_enabled": false
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          2
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 10,
+        "period_ms": 10,
+        "waitable_timer_kind": "high_resolution",
+        "start_delay_ms": 0,
+        "wake_source": "timer"
+      }
+    }
+  ]
 }

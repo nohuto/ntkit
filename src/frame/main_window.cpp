@@ -660,21 +660,26 @@ bool MainWindow::CommandEnabled(int id, const std::vector<uint32_t>& selected) c
         return ThreadSettingEditable(selected) && selected.size() == 1;
     case cmd::kThreadActive:
     case cmd::kThreadActivityCustom:
-    case cmd::kThreadBoost:
     case cmd::kThreadSharedMutex:
+        return ThreadSettingEditable(selected);
+    case cmd::kThreadBoost:
     case cmd::kThreadAffinity:
     case cmd::kThreadIdeal:
-        return ThreadSettingEditable(selected);
+        return ThreadPolicyEditable(selected);
     case cmd::kThreadCpuSets:
-        return ThreadSettingEditable(selected) && environment_.topology.cpu_sets_known;
+        return ThreadPolicyEditable(selected) && environment_.topology.cpu_sets_known;
     case cmd::kRunStart:
         return !busy && !validation_.HasErrors() && !config_.threads.empty();
     case cmd::kRunDurationUnlimited:
     case cmd::kRunDurationCustom:
     case cmd::kViewUpdateSpeedCustom:
         return !busy;
+    // process changes during a run go into the run's live change log
+    case cmd::kProcessAffinity:
+    case cmd::kProcessCpuSets:
+        return !busy || RunLive();
     case cmd::kRunSuspend:
-        return active && any_state({engine::ThreadRunState::kWorking, engine::ThreadRunState::kResting});
+        return active && any_state({engine::ThreadRunState::kPending, engine::ThreadRunState::kWorking, engine::ThreadRunState::kResting});
     case cmd::kRunResume:
         return active && any_state({engine::ThreadRunState::kSuspended, engine::ThreadRunState::kSuspending});
     case cmd::kRunStopSelected:
@@ -682,9 +687,17 @@ bool MainWindow::CommandEnabled(int id, const std::vector<uint32_t>& selected) c
     case cmd::kRunStopAll:
         return busy && !(snapshot_ && snapshot_->state == engine::RunState::kStopping);
     default:
-        if ((id >= cmd::kThreadPriorityFirst && id <= cmd::kThreadPriorityLast) || (id >= cmd::kThreadActivityFirst && id <= cmd::kThreadActivityLast))
+        if (id >= cmd::kThreadPriorityFirst && id <= cmd::kThreadPriorityLast)
+        {
+            return ThreadPolicyEditable(selected);
+        }
+        if (id >= cmd::kThreadActivityFirst && id <= cmd::kThreadActivityLast)
         {
             return ThreadSettingEditable(selected);
+        }
+        if (id >= cmd::kProcessPriorityFirst && id <= cmd::kProcessPriorityLast)
+        {
+            return !busy || RunLive();
         }
         if ((id >= cmd::kRunDurationFirst && id <= cmd::kRunDurationLast) || (id >= cmd::kViewUpdateSpeedFirst && id <= cmd::kViewUpdateSpeedLast))
         {
@@ -819,10 +832,11 @@ void MainWindow::UpdateStatus()
         if (snapshot_->state == engine::RunState::kActive || snapshot_->state == engine::RunState::kStopping)
         {
             state += L" " + elapsed + (snapshot_->requested_duration_s ? L" of " + std::to_wstring(*snapshot_->requested_duration_s) : std::wstring()) + L" s";
-            // process total in CPU % column units
-            if (snapshot_->process && snapshot_->process->cpu_percent_one_logical_processor)
+            // share of all active logical processors, like Task Manager
+            const uint32_t processors = snapshot_->topology ? snapshot_->topology->ActiveProcessorCount() : 0;
+            if (snapshot_->process && snapshot_->process->cpu_percent_one_logical_processor && processors > 0)
             {
-                process_cpu = L", CPU " + platform::FormatFixed(*snapshot_->process->cpu_percent_one_logical_processor, 1) + L" %";
+                process_cpu = L", CPU " + platform::FormatFixed(*snapshot_->process->cpu_percent_one_logical_processor / processors, 1) + L" %";
             }
         }
         // setup failure never reaches the start, so no duration is available
@@ -1595,13 +1609,58 @@ bool MainWindow::ThreadSettingEditable(const std::vector<uint32_t>& selected) co
     return true;
 }
 
+bool MainWindow::RunLive() const
+{
+    return snapshot_ && snapshot_->generation == ui_generation_ && !snapshot_->final &&
+           (snapshot_->state == engine::RunState::kStarting || snapshot_->state == engine::RunState::kActive);
+}
+
+bool MainWindow::ThreadPolicyEditable(const std::vector<uint32_t>& selected) const
+{
+    if (!RunBusy())
+    {
+        return ThreadSettingEditable(selected);
+    }
+    // threads added or removed before the run would shift indexes, they are blocked while busy
+    if (selected.empty() || !RunLive() || config_.threads.size() != run_config_.threads.size())
+    {
+        return false;
+    }
+    for (uint32_t thread : selected)
+    {
+        if (thread >= run_config_.threads.size() || !run_config_.threads[thread].active)
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
+void MainWindow::ApplyLivePolicy(const std::vector<uint32_t>& threads)
+{
+    if (!RunLive())
+    {
+        return;
+    }
+    for (uint32_t thread : threads)
+    {
+        if (thread < config_.threads.size())
+        {
+            controller_->ApplyThreadPolicy(thread, config_.threads[thread].scheduling, config_.threads[thread].affinity);
+        }
+    }
+    controller_->RequestSample();
+}
+
 void MainWindow::SetThreadRelativePriority(engine::RelativeThreadPriority relative_priority)
 {
-    for (uint32_t thread : table_.SelectedThreads())
+    const std::vector<uint32_t> selected = table_.SelectedThreads();
+    for (uint32_t thread : selected)
     {
         config_.threads[thread].scheduling.relative_priority = relative_priority;
     }
     OnConfigChanged(false);
+    ApplyLivePolicy(selected);
 }
 
 void MainWindow::ToggleThreadPriorityBoost()
@@ -1614,6 +1673,7 @@ void MainWindow::ToggleThreadPriorityBoost()
         config_.threads[thread].scheduling.priority_boost_enabled = enable;
     }
     OnConfigChanged(false);
+    ApplyLivePolicy(selected);
 }
 
 void MainWindow::ToggleThreadSharedMutex()
@@ -1702,7 +1762,8 @@ void MainWindow::EditThreadAffinity(int command)
     options.title = (command == cmd::kThreadAffinity ? L"Affinity of " : command == cmd::kThreadCpuSets ? L"CPU Sets of "
                                                                                                         : L"Ideal processor of ") +
                     scope;
-    options.allow_none = command == cmd::kThreadIdeal;
+    // Windows cannot clear an ideal processor, a running thread keeps one
+    options.allow_none = command == cmd::kThreadIdeal && !RunLive();
     PickerSelection initial;
     initial.group = current.group_affinity.group;
     initial.mask = current.mode == engine::AffinityMode::kGroupAffinity ? current.group_affinity.mask : 0;
@@ -1786,6 +1847,7 @@ void MainWindow::EditThreadAffinity(int command)
     }
     apply(config_, *picked);
     OnConfigChanged(false);
+    ApplyLivePolicy(selected);
 }
 
 void MainWindow::FocusFirstIssue()
@@ -1857,6 +1919,10 @@ void MainWindow::ShowAbout()
 void MainWindow::SetProcessPriorityClass(DWORD priority_class)
 {
     const platform::Status status = platform::SetProcessPriorityClassValue(priority_class);
+    if (RunLive())
+    {
+        controller_->RecordProcessChange(L"priority_class", PriorityClassName(priority_class), status);
+    }
     if (!status)
     {
         ShowError(hwnd_, L"Priority Class", L"The priority class could not be set.", status.error());
@@ -1899,6 +1965,10 @@ void MainWindow::EditProcessPlacement(int command)
     // empty process selection restores every processor in its group
     const platform::Status status = command == cmd::kProcessAffinity ? platform::SetProcessAffinity(picked->mask ? picked->mask : current->system_affinity)
                                                                      : platform::SetProcessDefaultCpuSetIds(picked->selected_cpu_set_ids);
+    if (RunLive())
+    {
+        controller_->RecordProcessChange(command == cmd::kProcessAffinity ? L"process_affinity" : L"process_default_cpu_sets", command == cmd::kProcessAffinity ? platform::DescribeGroupAffinity(current->group, picked->mask ? picked->mask : current->system_affinity) : DescribeCpuSetIds(picked->selected_cpu_set_ids), status);
+    }
     if (!status)
     {
         ShowError(hwnd_, title, L"The setting could not be applied.", status.error());

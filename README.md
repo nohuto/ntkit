@@ -5,26 +5,47 @@ Tool for experimenting with thread scheduling, inspired by [CPUStress](https://g
 ## Features
 
 - Activity per thread, or a custom work, period and waitable timer (default/high resolution)
-- Relative priority, priority boost, group affinity, CPU Sets, ideal processor per thread
+- Wake source per thread, waitable timer (priority increment 0), an event (1) or a window message (2)
+- Start delay per thread, for example so one thread owns the shared mutex first
+- Relative priority (idle to time critical), priority boost, group affinity, CPU sets, ideal processor per thread
 - Shared mutex for priority inversion
-- Process priority class, affinity, CPU Sets
+- Process priority class, affinity, CPU sets
+- Change priority, priority boost, affinity, CPU sets, ideal processor, process settings while running 
 - Suspend, resume, stop threads
 - Thread state & wait reason, base & current priority, running priority distribution, context switches, CPU % and CPU time (`QueryThreadCycleTime`)
 - Some presets for specific scenarios in `assets\examples\`, see comments in each file for some additional notes:
 
 ### Quantum Expiration
 
-See '[Priority Separation, Quantum](https://noverse.dev/docs/win-config/system/priority-separation/#quantum)' / '[Context Switching, WrQuantumEnd](https://noverse.dev/docs/windbg-notes/threads/thread-scheduling/context-switching/#wrquantumend)' for more details.
+See '[Priority Separation, Quantum](https://noverse.dev/docs/win-config/system/priority-separation/#quantum)' / '[Context Switching, WrQuantumEnd](https://noverse.dev/docs/windbg-notes/threads/thread-scheduling/context-switching/#wrquantumend)' for details/notes on the captures.
+
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/quantum-expiration/quantum-expiration-cs.png?raw=true)
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/quantum-expiration/quantum-expiration-core.png?raw=true)
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/quantum-expiration/quantum-expiration-time.png?raw=true)
 
 ### CPU Starvation
 
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/cpu-starvation/cpu-starvation.png?raw=true)
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/cpu-starvation/cpu-starvation-cs.png?raw=true)
+
 ### Priority Preemption
+
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/priority-preemption/prio-preemption.png?raw=true)
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/priority-preemption/prio-preemption-cs.png?raw=true)
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/priority-preemption/prio-preemption-core.png?raw=true)
 
 ### Priority Boosting
 
-### Priority Decay / Inversion
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/priority-boost/prio-boost.png?raw=true)
 
-Will be added soon.
+### Priority Decay
+
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/priority-decay/prio-decay.png?raw=true)
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/priority-decay/prio-decay-time.png?raw=true)
+
+### Priority Inversion
+
+![](https://github.com/nohuto/thread-sim/blob/main/assets/images/priority-inversion/prio-inversion.png?raw=true)
 
 ## Verify Binaries
 
@@ -44,7 +65,7 @@ It must show `Good signature from "nohuto <contact@noverse.dev>"`, made by the s
 
 ![](https://github.com/nohuto/thread-sim/blob/main/assets/images/thread-sim.png?raw=true)
 
-## CL
+## CLI
 
 ```powershell
 thread-sim.exe [--data-dir <dir>] [--config <file.jsonc>]

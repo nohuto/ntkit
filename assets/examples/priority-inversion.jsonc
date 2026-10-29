@@ -1,9 +1,88 @@
-// three threads share logical CPU 1 for 30s
+// three threads share logical CPU 1 for 10s, dynamic boosts disabled
 //
-// 'Owner' (Lowest) and 'Waiter' (Highest) hold the shared mutex while they work, 'Competitor' (Normal) never waits
-// 'Competitor' keeps 'Owner' from running, so 'Owner' cannot release mutex and 'Waiter' waits for i
+// use 'Normal' process priority, 'Low' has base priority 6, 'Medium' 8 and 'High' 10
+// 'Low' starts first and owns the shared mutex, 'Medium' starts after 100ms and never waits, 'High' starts after 200ms and waits for the mutex
+// 'Medium' keeps 'Low' from running, so 'High' waits behind a lower priority thread
+//
+// after ~4s of ready time Windows boosts 'Low' to 15 for one quantum, it releases the mutex and 'High' works until 9s
 
 {
   "format": "thread-sim.run-config",
-  "name": "Priority inversion"
+  "name": "Priority inversion",
+  "duration_s": 10,
+  "sample_interval_ms": 500,
+  "threads": [
+    {
+      "name": "Low",
+      "active": true,
+      "shared_mutex": true,
+      "scheduling": {
+        "relative_priority": "lowest",
+        "priority_boost_enabled": false
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 3,
+        "period_ms": 10000,
+        "waitable_timer_kind": "default",
+        "start_delay_ms": 0
+      }
+    },
+    {
+      "name": "Medium",
+      "active": true,
+      "shared_mutex": false,
+      "scheduling": {
+        "relative_priority": "normal",
+        "priority_boost_enabled": false
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 100,
+        "period_ms": 10000,
+        "waitable_timer_kind": "default",
+        "start_delay_ms": 100
+      }
+    },
+    {
+      "name": "High",
+      "active": true,
+      "shared_mutex": true,
+      "scheduling": {
+        "relative_priority": "highest",
+        "priority_boost_enabled": false
+      },
+      "affinity": {
+        "mode": "group_affinity",
+        "group_affinity_group": 0,
+        "group_affinity_processors": [
+          1
+        ],
+        "selected_cpu_set_ids": [],
+        "ideal_processor": null
+      },
+      "activity": {
+        "work_percent": 90,
+        "period_ms": 10000,
+        "waitable_timer_kind": "default",
+        "start_delay_ms": 200
+      }
+    }
+  ]
 }
